@@ -215,11 +215,18 @@
     var mainEl = root.querySelector('input[name="rf-main"]:checked');
     var linkEl = document.getElementById("rf-f-link");
     var instrEl = document.getElementById("rf-f-instructions");
+    var ingInput = document.getElementById("rf-ing-input");
+
+    // Auto-commit any ingredient text left in the input (e.g. typed but Enter never pressed)
+    if (ingInput && ingInput.value.trim()) {
+      var pending = ingInput.value.trim();
+      if (state.formIngredients.indexOf(pending) === -1) state.formIngredients.push(pending);
+      ingInput.value = "";
+    }
 
     var name = nameEl.value.trim();
     if (!name || state.formIngredients.length === 0) {
-      state.formError = "צריך שם מנה ולפחות מרכיב אחד";
-      render();
+      showFormError("צריך שם מנה ולפחות מרכיב אחד");
       return;
     }
 
@@ -237,9 +244,18 @@
     ref.set(payload)
       .then(function () { backToList(); })
       .catch(function (err) {
-        state.formError = "השמירה נכשלה: " + (err && err.message ? err.message : err);
-        render();
+        showFormError("השמירה נכשלה: " + (err && err.message ? err.message : err));
       });
+  }
+
+  function showFormError(msg) {
+    state.formError = msg;
+    var box = document.getElementById("rf-form-error");
+    if (box) {
+      box.innerHTML = msg ? '<p class="rf-status" style="color:var(--brick)">' + esc(msg) + '</p>' : "";
+    } else {
+      render();
+    }
   }
 
   function toggleCategory(cat) {
@@ -336,7 +352,7 @@
     return (
       '<div class="rf-card" style="padding:18px">' +
       '<h2 class="rf-title" style="font-size:20px;margin:0 0 16px">' + (r ? "עריכת מתכון" : "מתכון חדש") + '</h2>' +
-      (state.formError ? '<p class="rf-status" style="color:var(--brick)">' + esc(state.formError) + '</p>' : '') +
+      '<div id="rf-form-error">' + (state.formError ? '<p class="rf-status" style="color:var(--brick)">' + esc(state.formError) + '</p>' : '') + '</div>' +
 
       '<span class="rf-label">תמונה</span>' +
       '<div id="rf-img-wrap" style="margin-bottom:16px"></div>' +
