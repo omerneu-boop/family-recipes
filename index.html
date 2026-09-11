@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>המתכונים של המשפחה</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#FAF6EC">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="המתכונים שלנו">
+<link rel="apple-touch-icon" href="icon-192.png">
+</head>
+<body style="margin:0">
+<div id="rf-app" dir="rtl"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.3.0/firebase-app-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/12.3.0/firebase-firestore-compat.min.js"></script>
+
+<style>
+  #rf-app {
+    --paper: #FAF6EC; --paper-2: #F1E9D8; --ink: #2B2118; --ink-soft: #6B5D4C;
+    --line: #DED2BA; --olive: #56634A; --olive-soft: #E4E7DA; --mustard: #C98A2C; --brick: #9A4B3A;
+    font-family: 'Rubik', sans-serif;
+    background: var(--paper); color: var(--ink);
+    min-height: 100vh; padding: 20px 16px 80px; box-sizing: border-box;
+  }
+  @import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=Rubik:wght@400;500;600&display=swap');
+  #rf-app * { box-sizing: border-box; }
+  .rf-title { font-family: 'Frank Ruhl Libre', serif; font-weight: 700; }
+  .rf-card { background: var(--paper); border: 1px solid var(--line); border-radius: 4px; }
+  .rf-btn {
+    border: 1px solid var(--ink); background: var(--ink); color: var(--paper); border-radius: 3px;
+    padding: 10px 16px; font-family: 'Rubik', sans-serif; font-size: 14px; font-weight: 500;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  }
+  .rf-btn:active { transform: translateY(1px); }
+  .rf-btn-outline { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .rf-input {
+    width: 100%; border: 1px solid var(--line); background: var(--paper); border-radius: 3px;
+    padding: 10px 12px; font-family: 'Rubik', sans-serif; font-size: 15px; color: var(--ink);
+  }
+  .rf-input:focus, .rf-btn:focus, .rf-chip:focus { outline: 2px solid var(--olive); outline-offset: 1px; }
+  .rf-chip {
+    border: 1px solid var(--line); border-radius: 20px; padding: 6px 13px; font-size: 13px;
+    cursor: pointer; background: var(--paper); color: var(--ink-soft); display: inline-flex; align-items: center; gap: 5px;
+  }
+  .rf-chip.on { background: var(--olive-soft); border-color: var(--olive); color: var(--olive); font-weight: 500; }
+  .rf-badge { font-size: 12px; padding: 3px 9px; border-radius: 20px; font-weight: 500; display: inline-block; }
+  .rf-suggest {
+    position: absolute; z-index: 5; top: calc(100% + 4px); right: 0; left: 0;
+    background: var(--paper); border: 1px solid var(--line); border-radius: 4px;
+    box-shadow: 0 4px 10px rgba(43,33,24,0.12); overflow: hidden;
+  }
+  .rf-suggest button {
+    display: block; width: 100%; text-align: right; padding: 9px 12px; font-size: 14px;
+    background: none; border: none; cursor: pointer; color: var(--ink); font-family: 'Rubik', sans-serif;
+  }
+  .rf-suggest button:hover { background: var(--olive-soft); }
+  .rf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 12px; }
+  .rf-tile { display: flex; flex-direction: column; cursor: pointer; overflow: hidden; }
+  .rf-tile-img { width: 100%; aspect-ratio: 1/1; object-fit: cover; border-radius: 4px 4px 0 0; display: block; background: var(--paper-2); }
+  .rf-tile-placeholder { width: 100%; aspect-ratio: 1/1; border-radius: 4px 4px 0 0; background: var(--paper-2); display: flex; align-items: center; justify-content: center; }
+  .rf-tile-body { padding: 10px; }
+  .rf-fab {
+    position: fixed; bottom: 22px; left: 20px; border-radius: 50%; width: 52px; height: 52px;
+    padding: 0; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 8px rgba(43,33,24,0.25); font-size: 26px; line-height: 1;
+  }
+  .rf-label { font-size: 13px; color: var(--ink-soft); display: block; margin-bottom: 6px; }
+  .rf-status { font-size: 12px; margin-top: 10px; }
+</style>
+
+<script>
+(function () {
+  var firebaseConfig = {
+    apiKey: "AIzaSyAbgRq6F-wyEd2DiH9V1uGixccVlDCDFbo",
+    authDomain: "family-recepies.firebaseapp.com",
+    projectId: "family-recepies",
+    storageBucket: "family-recepies.firebasestorage.app",
+    messagingSenderId: "784734318905",
+    appId: "1:784734318905:web:20fd4b02584e3c7d5c78e8"
+  };
+
+  var TIME_OPTIONS = [
+    { key: "quick", label: "מהיר", hint: "עד 20 דק׳", color: "#6E7F4F" },
+    { key: "medium", label: "בינוני", hint: "20–45 דק׳", color: "#C98A2C" },
+    { key: "long", label: "ארוך", hint: "45 דק׳ ומעלה", color: "#9A4B3A" }
+  ];
+  var MAIN_INGREDIENT_OPTIONS = ["בשר טחון", "עוף טחון", "בשר", "צמחוני"];
+  function timeMeta(key) {
+    for (var i = 0; i < TIME_OPTIONS.length; i++) if (TIME_OPTIONS[i].key === key) return TIME_OPTIONS[i];
+    return TIME_OPTIONS[0];
+  }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  var root = document.getElementById("rf-app");
+  var app, db;
+  var connStatus = "connecting"; // connecting | ok | error
+  var connErrorMsg = "";
+
+  var state = {
+    recipes: [],
+    loading: true,
+    view: "list", // list | detail | form
+    activeId: null,
+    query: "",
+    activeCategories: [],
+    formIngredients: [],
+    formImage: "",
+    formImgBusy: false,
+    formError: ""
+  };
+
+  function allIngredients() {
+    var set = {};
+    state.recipes.forEach(function (r) { (r.ingredients || []).forEach(function (i) { set[i] = true; }); });
+    return Object.keys(set).sort(function (a, b) { return a.localeCompare(b, "he"); });
+  }
+
+  function filteredRecipes() {
+    var tokens = state.query.split(",").map(function (t) { return t.trim(); }).filter(Boolean);
+    return state.recipes.filter(function (r) {
+      if (state.activeCategories.length > 0 && state.activeCategories.indexOf(r.mainIngredient) === -1) return false;
+      if (tokens.length === 0) return true;
+      return tokens.every(function (tok) {
+        return (r.ingredients || []).some(function (ing) { return ing.indexOf(tok) !== -1; }) ||
+          (r.name || "").indexOf(tok) !== -1;
+      });
+    });
+  }
+
+  function resizeImage(file, maxWidth, quality) {
+    maxWidth = maxWidth || 480; quality = quality || 0.72;
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        var img = new Image();
+        img.onload = function () {
+          var scale = Math.min(1, maxWidth / img.width);
+          var canvas = document.createElement("canvas");
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+          var ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL("image/jpeg", quality));
+        };
+        img.onerror = reject;
+        img.src = reader.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  // ---------- Firebase init ----------
+  try {
+    app = firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    db.collection("recipes").onSnapshot(
+      function (snap) {
+        var list = [];
+        snap.forEach(function (doc) { list.push(Object.assign({ id: doc.id }, doc.data())); });
+        list.sort(function (a, b) { return (a.name || "").localeCompare(b.name || "", "he"); });
+        state.recipes = list;
+        state.loading = false;
+        connStatus = "ok";
+        render();
+      },
+      function (err) {
+        connStatus = "error";
+        connErrorMsg = err && err.message ? err.message : String(err);
+        state.loading = false;
+        render();
+      }
+    );
+  } catch (err) {
+    connStatus = "error";
+    connErrorMsg = err && err.message ? err.message : String(err);
+    state.loading = false;
+  }
+
+  // ---------- Actions ----------
+  function openDetail(id) { state.activeId = id; state.view = "detail"; render(); }
+  function openNewForm() {
+    state.activeId = null; state.view = "form";
+    state.formIngredients = []; state.formImage = ""; state.formError = "";
+    render();
+  }
+  function openEditForm(id) {
+    var r = state.recipes.find(function (x) { return x.id === id; });
+    state.activeId = id; state.view = "form";
+    state.formIngredients = (r && r.ingredients) ? r.ingredients.slice() : [];
+    state.formImage = (r && r.image) || "";
+    state.formError = "";
+    render();
+  }
+  function backToList() { state.view = "list"; state.activeId = null; render(); }
+
+  function deleteRecipe(id) {
+    db.collection("recipes").doc(id).delete().catch(function (err) {
+      alert("מחיקה נכשלה: " + (err && err.message ? err.message : err));
+    });
+    backToList();
+  }
+
+  function saveRecipeFromForm() {
+    var nameEl = document.getElementById("rf-f-name");
+    var timeEl = root.querySelector('input[name="rf-time"]:checked');
+    var mainEl = root.querySelector('input[name="rf-main"]:checked');
+    var linkEl = document.getElementById("rf-f-link");
+    var instrEl = document.getElementById("rf-f-instructions");
+
+    var name = nameEl.value.trim();
+    if (!name || state.formIngredients.length === 0) {
+      state.formError = "צריך שם מנה ולפחות מרכיב אחד";
+      render();
+      return;
+    }
+
+    var payload = {
+      name: name,
+      ingredients: state.formIngredients,
+      time: timeEl ? timeEl.value : "quick",
+      mainIngredient: mainEl ? mainEl.value : "",
+      link: linkEl.value.trim(),
+      instructions: instrEl.value.trim(),
+      image: state.formImage || ""
+    };
+
+    var ref = state.activeId ? db.collection("recipes").doc(state.activeId) : db.collection("recipes").doc();
+    ref.set(payload)
+      .then(function () { backToList(); })
+      .catch(function (err) {
+        state.formError = "השמירה נכשלה: " + (err && err.message ? err.message : err);
+        render();
+      });
+  }
+
+  function toggleCategory(cat) {
+    var i = state.activeCategories.indexOf(cat);
+    if (i === -1) state.activeCategories.push(cat); else state.activeCategories.splice(i, 1);
+    render();
+  }
+
+  // ---------- Render: pieces ----------
+  function renderIngredientChips() {
+    return state.formIngredients.map(function (ing) {
+      return '<span class="rf-chip on" data-ing="' + esc(ing) + '">' + esc(ing) +
+        ' <span data-remove-ing="' + esc(ing) + '" style="cursor:pointer">✕</span></span>';
+    }).join("");
+  }
+
+  function renderRecipeCard(r) {
+    var tm = timeMeta(r.time);
+    var img = r.image
+      ? '<img src="' + r.image + '" class="rf-tile-img" alt="" />'
+      : '<div class="rf-tile-placeholder"><span style="font-size:22px;opacity:.4">🍽</span></div>';
+    return (
+      '<div class="rf-card rf-tile" data-open="' + r.id + '">' + img +
+      '<div class="rf-tile-body">' +
+      '<h3 style="margin:0;font-size:14px;font-family:\'Frank Ruhl Libre\',serif;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">' + esc(r.name) + '</h3>' +
+      '<div style="display:flex;gap:6px;margin-top:8px;align-items:center;flex-wrap:wrap">' +
+      '<span class="rf-badge" style="background:' + tm.color + '22;color:' + tm.color + '">' + tm.label + '</span>' +
+      (r.link ? '<span style="font-size:12px;color:var(--mustard)">🔗</span>' : '') +
+      '</div>' +
+      (r.mainIngredient ? '<p style="margin:6px 0 0;font-size:11px;color:var(--ink-soft)">' + esc(r.mainIngredient) + '</p>' : '') +
+      '</div></div>'
+    );
+  }
+
+  function renderList() {
+    var recipes = filteredRecipes();
+    var catsHtml = MAIN_INGREDIENT_OPTIONS.map(function (c) {
+      return '<button type="button" class="rf-chip ' + (state.activeCategories.indexOf(c) !== -1 ? "on" : "") + '" data-cat="' + esc(c) + '">' + c + '</button>';
+    }).join("");
+
+    var gridHtml = recipes.length
+      ? '<div class="rf-grid">' + recipes.map(renderRecipeCard).join("") + '</div>'
+      : '<div class="rf-card" style="padding:20px;text-align:center;color:var(--ink-soft)">לא נמצאו מתכונים תואמים.</div>';
+
+    return (
+      '<div style="position:relative">' +
+      '<span style="position:absolute;right:12px;top:12px;color:var(--ink-soft)">🔍</span>' +
+      '<input id="rf-search" class="rf-input" style="padding-right:36px" placeholder="הקלידו מרכיבים שיש לכם, מופרדים בפסיק" value="' + esc(state.query) + '" />' +
+      '<div id="rf-search-suggest"></div>' +
+      '</div>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 16px">' + catsHtml + '</div>' +
+      gridHtml +
+      '<button type="button" id="rf-fab" class="rf-btn rf-fab" aria-label="הוספת מתכון">+</button>'
+    );
+  }
+
+  function renderDetail() {
+    var r = state.recipes.find(function (x) { return x.id === state.activeId; });
+    if (!r) { backToList(); return ""; }
+    var tm = timeMeta(r.time);
+    return (
+      '<button type="button" id="rf-back" class="rf-btn rf-btn-outline" style="margin-bottom:14px">→ חזרה לרשימה</button>' +
+      '<div class="rf-card" style="padding:18px">' +
+      (r.image ? '<img src="' + r.image + '" style="width:100%;max-height:220px;object-fit:cover;border-radius:4px;margin-bottom:14px" alt="" />' : '') +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">' +
+      '<h2 class="rf-title" style="font-size:22px;margin:0">' + esc(r.name) + '</h2>' +
+      '<span class="rf-badge" style="background:' + tm.color + '22;color:' + tm.color + ';white-space:nowrap">' + tm.label + ' · ' + tm.hint + '</span>' +
+      '</div>' +
+      (r.mainIngredient ? '<span class="rf-badge" style="background:var(--olive-soft);color:var(--olive);margin-top:10px">' + esc(r.mainIngredient) + '</span>' : '') +
+      '<h4 style="font-size:13px;color:var(--ink-soft);margin:16px 0 6px;font-weight:500">מרכיבים</h4>' +
+      '<ul style="margin:0;padding-right:18px;font-size:14px;line-height:1.9">' +
+      (r.ingredients || []).map(function (i) { return '<li>' + esc(i) + '</li>'; }).join("") +
+      '</ul>' +
+      (r.instructions ? '<h4 style="font-size:13px;color:var(--ink-soft);margin:16px 0 6px;font-weight:500">אופן ההכנה</h4><p style="margin:0;font-size:14px;line-height:1.8;white-space:pre-wrap">' + esc(r.instructions) + '</p>' : '') +
+      (r.link ? '<a href="' + esc(r.link) + '" target="_blank" rel="noreferrer" class="rf-btn rf-btn-outline" style="margin-top:16px;text-decoration:none;display:inline-flex">🔗 פתיחת המתכון המקורי</a>' : '') +
+      '<div style="display:flex;gap:8px;margin-top:20px;border-top:1px solid var(--line);padding-top:14px">' +
+      '<button type="button" id="rf-edit" class="rf-btn rf-btn-outline">✏️ עריכה</button>' +
+      '<button type="button" id="rf-delete" class="rf-btn rf-btn-outline">🗑 מחיקה</button>' +
+      '</div></div>'
+    );
+  }
+
+  function renderForm() {
+    var r = state.activeId ? state.recipes.find(function (x) { return x.id === state.activeId; }) : null;
+    var timeChips = TIME_OPTIONS.map(function (t) {
+      var checked = (r ? r.time === t.key : t.key === "quick");
+      return '<label class="rf-chip ' + (checked ? "on" : "") + '"><input type="radio" name="rf-time" value="' + t.key + '" ' + (checked ? "checked" : "") + ' style="display:none">' + t.label + '</label>';
+    }).join("");
+    var mainChips = MAIN_INGREDIENT_OPTIONS.map(function (c) {
+      var checked = r && r.mainIngredient === c;
+      return '<label class="rf-chip ' + (checked ? "on" : "") + '"><input type="radio" name="rf-main" value="' + c + '" ' + (checked ? "checked" : "") + ' style="display:none">' + c + '</label>';
+    }).join("");
+
+    return (
+      '<div class="rf-card" style="padding:18px">' +
+      '<h2 class="rf-title" style="font-size:20px;margin:0 0 16px">' + (r ? "עריכת מתכון" : "מתכון חדש") + '</h2>' +
+      (state.formError ? '<p class="rf-status" style="color:var(--brick)">' + esc(state.formError) + '</p>' : '') +
+
+      '<span class="rf-label">תמונה</span>' +
+      '<div id="rf-img-wrap" style="margin-bottom:16px"></div>' +
+
+      '<span class="rf-label">שם המנה</span>' +
+      '<input id="rf-f-name" class="rf-input" style="margin-bottom:14px" placeholder="למשל: עוף בתנור עם תפוחי אדמה" value="' + (r ? esc(r.name) : "") + '" />' +
+
+      '<span class="rf-label">מרכיבים</span>' +
+      '<div id="rf-ing-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">' + renderIngredientChips() + '</div>' +
+      '<div style="position:relative;margin-bottom:14px">' +
+      '<input id="rf-ing-input" class="rf-input" placeholder="הקלידו מרכיב ולחצו Enter" />' +
+      '<div id="rf-ing-suggest"></div>' +
+      '</div>' +
+
+      '<span class="rf-label">זמן הכנה</span>' +
+      '<div style="display:flex;gap:8px;margin-bottom:14px">' + timeChips + '</div>' +
+
+      '<span class="rf-label">רכיב עיקרי</span>' +
+      '<div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">' + mainChips + '</div>' +
+
+      '<span class="rf-label">אופן ההכנה (לא חובה)</span>' +
+      '<textarea id="rf-f-instructions" class="rf-input" rows="4" style="margin-bottom:14px;resize:vertical" placeholder="שלבי ההכנה, בחופשיות">' + (r ? esc(r.instructions || "") : "") + '</textarea>' +
+
+      '<span class="rf-label">קישור למתכון (לא חובה)</span>' +
+      '<input id="rf-f-link" class="rf-input" style="margin-bottom:18px" placeholder="https://..." value="' + (r ? esc(r.link || "") : "") + '" />' +
+
+      '<div style="display:flex;gap:8px">' +
+      '<button type="button" id="rf-save" class="rf-btn">שמירה</button>' +
+      '<button type="button" id="rf-cancel" class="rf-btn rf-btn-outline">✕ ביטול</button>' +
+      '</div></div>'
+    );
+  }
+
+  function renderImageWrap() {
+    var wrap = document.getElementById("rf-img-wrap");
+    if (!wrap) return;
+    if (state.formImage) {
+      wrap.innerHTML =
+        '<div style="position:relative;width:120px">' +
+        '<img src="' + state.formImage + '" style="width:120px;height:120px;object-fit:cover;border-radius:4px" alt="" />' +
+        '<button type="button" id="rf-img-remove" class="rf-btn rf-btn-outline" style="position:absolute;top:4px;left:4px;padding:4px;border-radius:50%">✕</button>' +
+        '</div>';
+    } else {
+      wrap.innerHTML =
+        '<label for="rf-img-input" class="rf-btn rf-btn-outline" style="' + (state.formImgBusy ? "opacity:.6;pointer-events:none" : "") + '">📷 ' + (state.formImgBusy ? "טוען..." : "העלאת תמונה מהגלריה") + '</label>' +
+        '<input id="rf-img-input" type="file" accept="image/*" style="position:absolute;width:1px;height:1px;opacity:0;overflow:hidden" />';
+    }
+  }
+
+  // ---------- Master render ----------
+  function render() {
+    if (connStatus === "error") {
+      root.innerHTML =
+        '<div style="padding:20px 0"><h1 class="rf-title" style="font-size:22px">המתכונים של המשפחה</h1>' +
+        '<p class="rf-status" style="color:var(--brick)">החיבור ל-Firebase נכשל: ' + esc(connErrorMsg) + '</p></div>';
+      return;
+    }
+    var body;
+    if (state.loading) {
+      body = '<p style="color:var(--ink-soft)">טוען...</p>';
+    } else if (state.view === "form") {
+      body = renderForm();
+    } else if (state.view === "detail") {
+      body = renderDetail();
+    } else {
+      body = renderList();
+    }
+    root.innerHTML =
+      '<header style="margin-bottom:18px">' +
+      '<h1 class="rf-title" style="font-size:26px;margin:0">🍳 המתכונים של המשפחה</h1>' +
+      '<p style="color:var(--ink-soft);font-size:13px;margin:4px 0 0">כל מה שאנחנו אוהבים להכין, במקום אחד</p>' +
+      '</header>' + body;
+
+    if (state.view === "form") { renderImageWrap(); wireForm(); }
+    if (state.view === "list") wireList();
+    if (state.view === "detail") wireDetail();
+  }
+
+  // ---------- Wiring ----------
+  function wireList() {
+    var search = document.getElementById("rf-search");
+    if (search) {
+      search.addEventListener("input", function () {
+        state.query = search.value;
+        renderSearchSuggest();
+      });
+      search.addEventListener("blur", function () { setTimeout(function () { var s = document.getElementById("rf-search-suggest"); if (s) s.innerHTML = ""; }, 150); });
+    }
+    root.querySelectorAll("[data-cat]").forEach(function (btn) {
+      btn.addEventListener("click", function () { toggleCategory(btn.getAttribute("data-cat")); });
+    });
+    root.querySelectorAll("[data-open]").forEach(function (card) {
+      card.addEventListener("click", function () { openDetail(card.getAttribute("data-open")); });
+    });
+    var fab = document.getElementById("rf-fab");
+    if (fab) fab.addEventListener("click", openNewForm);
+  }
+
+  function renderSearchSuggest() {
+    var box = document.getElementById("rf-search-suggest");
+    if (!box) return;
+    var parts = state.query.split(",");
+    var last = parts[parts.length - 1].trim();
+    if (!last) { box.innerHTML = ""; return; }
+    var already = parts.slice(0, -1).map(function (t) { return t.trim(); });
+    var opts = allIngredients().filter(function (i) { return i.indexOf(last) !== -1 && already.indexOf(i) === -1; }).slice(0, 6);
+    if (opts.length === 0) { box.innerHTML = ""; return; }
+    box.innerHTML = '<div class="rf-suggest" style="position:relative">' + opts.map(function (o) {
+      return '<button type="button" data-pick="' + esc(o) + '">' + esc(o) + '</button>';
+    }).join("") + '</div>';
+    box.querySelectorAll("[data-pick]").forEach(function (b) {
+      b.addEventListener("mousedown", function () {
+        var parts2 = state.query.split(",");
+        parts2[parts2.length - 1] = " " + b.getAttribute("data-pick");
+        state.query = parts2.map(function (p) { return p.trim(); }).join(", ") + ", ";
+        render();
+        var s = document.getElementById("rf-search"); if (s) { s.focus(); s.value = state.query; }
+      });
+    });
+  }
+
+  function wireDetail() {
+    var back = document.getElementById("rf-back"); if (back) back.addEventListener("click", backToList);
+    var edit = document.getElementById("rf-edit"); if (edit) edit.addEventListener("click", function () { openEditForm(state.activeId); });
+    var del = document.getElementById("rf-delete");
+    if (del) del.addEventListener("click", function () {
+      if (confirm("למחוק את המתכון?")) deleteRecipe(state.activeId);
+    });
+  }
+
+  function wireForm() {
+    root.querySelectorAll('input[name="rf-time"], input[name="rf-main"]').forEach(function (inp) {
+      inp.addEventListener("change", function () {
+        var group = inp.name;
+        root.querySelectorAll('input[name="' + group + '"]').forEach(function (o) { o.closest("label").classList.remove("on"); });
+        inp.closest("label").classList.add("on");
+      });
+    });
+
+    var ingInput = document.getElementById("rf-ing-input");
+    function addIngredient(v) {
+      v = v.trim();
+      if (!v || state.formIngredients.indexOf(v) !== -1) { ingInput.value = ""; return; }
+      state.formIngredients.push(v);
+      ingInput.value = "";
+      document.getElementById("rf-ing-chips").innerHTML = renderIngredientChips();
+      wireIngredientChips();
+      document.getElementById("rf-ing-suggest").innerHTML = "";
+    }
+    function wireIngredientChips() {
+      root.querySelectorAll("[data-remove-ing]").forEach(function (x) {
+        x.addEventListener("click", function () {
+          var v = x.getAttribute("data-remove-ing");
+          state.formIngredients = state.formIngredients.filter(function (i) { return i !== v; });
+          document.getElementById("rf-ing-chips").innerHTML = renderIngredientChips();
+          wireIngredientChips();
+        });
+      });
+    }
+    wireIngredientChips();
+
+    if (ingInput) {
+      ingInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addIngredient(ingInput.value); }
+      });
+      ingInput.addEventListener("input", function () {
+        var box = document.getElementById("rf-ing-suggest");
+        var val = ingInput.value.trim();
+        if (!val) { box.innerHTML = ""; return; }
+        var opts = allIngredients().filter(function (i) { return i.indexOf(val) !== -1 && state.formIngredients.indexOf(i) === -1; }).slice(0, 6);
+        if (opts.length === 0) { box.innerHTML = ""; return; }
+        box.innerHTML = '<div class="rf-suggest">' + opts.map(function (o) { return '<button type="button" data-add="' + esc(o) + '">' + esc(o) + '</button>'; }).join("") + '</div>';
+        box.querySelectorAll("[data-add]").forEach(function (b) {
+          b.addEventListener("mousedown", function () { addIngredient(b.getAttribute("data-add")); });
+        });
+      });
+      ingInput.addEventListener("blur", function () { setTimeout(function () { var b = document.getElementById("rf-ing-suggest"); if (b) b.innerHTML = ""; }, 150); });
+    }
+
+    wireImageControls();
+
+    var saveBtn = document.getElementById("rf-save"); if (saveBtn) saveBtn.addEventListener("click", saveRecipeFromForm);
+    var cancelBtn = document.getElementById("rf-cancel"); if (cancelBtn) cancelBtn.addEventListener("click", function () {
+      state.view = state.activeId ? "detail" : "list"; render();
+    });
+  }
+
+  function wireImageControls() {
+    var input = document.getElementById("rf-img-input");
+    if (input) {
+      input.addEventListener("change", function () {
+        var file = input.files && input.files[0];
+        if (!file) return;
+        state.formImgBusy = true;
+        renderImageWrap();
+        resizeImage(file).then(function (dataUrl) {
+          state.formImage = dataUrl;
+          state.formImgBusy = false;
+          renderImageWrap();
+          wireImageControls();
+        }).catch(function () {
+          state.formImgBusy = false;
+          renderImageWrap();
+          wireImageControls();
+        });
+      });
+    }
+    var removeBtn = document.getElementById("rf-img-remove");
+    if (removeBtn) removeBtn.addEventListener("click", function () {
+      state.formImage = "";
+      renderImageWrap();
+      wireImageControls();
+    });
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
