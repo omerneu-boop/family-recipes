@@ -217,10 +217,12 @@
     var instrEl = document.getElementById("rf-f-instructions");
     var ingInput = document.getElementById("rf-ing-input");
 
-    // Auto-commit any ingredient text left in the input (e.g. typed but Enter never pressed)
+    // Auto-commit any ingredient text left in the input (comma-separated or not)
     if (ingInput && ingInput.value.trim()) {
-      var pending = ingInput.value.trim();
-      if (state.formIngredients.indexOf(pending) === -1) state.formIngredients.push(pending);
+      ingInput.value.split(",").forEach(function (p) {
+        var v = p.trim();
+        if (v && state.formIngredients.indexOf(v) === -1) state.formIngredients.push(v);
+      });
       ingInput.value = "";
     }
 
@@ -363,7 +365,7 @@
       '<span class="rf-label">מרכיבים</span>' +
       '<div id="rf-ing-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">' + renderIngredientChips() + '</div>' +
       '<div style="position:relative;margin-bottom:14px">' +
-      '<input id="rf-ing-input" class="rf-input" placeholder="הקלידו מרכיב ולחצו Enter" />' +
+      '<input id="rf-ing-input" class="rf-input" placeholder="הקלידו מרכיבים מופרדים בפסיק" />' +
       '<div id="rf-ing-suggest"></div>' +
       '</div>' +
 
@@ -516,9 +518,24 @@
 
     if (ingInput) {
       ingInput.addEventListener("keydown", function (e) {
-        if (e.key === "Enter" || e.key === ",") { e.preventDefault(); addIngredient(ingInput.value); }
+        if (e.key === "Enter") { e.preventDefault(); addIngredient(ingInput.value); }
       });
       ingInput.addEventListener("input", function () {
+        // Split on every comma the moment it appears — handles typing, mobile
+        // keyboards, and pasted comma-separated lists alike (keydown alone is
+        // unreliable for punctuation on many mobile keyboards).
+        if (ingInput.value.indexOf(",") !== -1) {
+          var parts = ingInput.value.split(",");
+          var remainder = parts.pop();
+          parts.forEach(function (p) {
+            var v = p.trim();
+            if (v && state.formIngredients.indexOf(v) === -1) state.formIngredients.push(v);
+          });
+          ingInput.value = remainder.replace(/^\s+/, "");
+          document.getElementById("rf-ing-chips").innerHTML = renderIngredientChips();
+          wireIngredientChips();
+        }
+
         var box = document.getElementById("rf-ing-suggest");
         var val = ingInput.value.trim();
         if (!val) { box.innerHTML = ""; return; }
