@@ -474,10 +474,10 @@
     batch.commit().catch(function () {});
   }
 
-  function addRecipeIngredientsToShopping(recipeId) {
-    var r = state.recipes.find(function (x) { return x.id === recipeId; });
-    if (!r) return;
-    addShoppingItems(r.ingredients || []);
+  function clearAllShoppingItems() {
+    var batch = db.batch();
+    state.shoppingItems.forEach(function (i) { batch.delete(db.collection("shopping").doc(i.id)); });
+    batch.commit().catch(function () {});
   }
 
   function renderList() {
@@ -556,7 +556,8 @@
       '</ul>' +
       (r.instructions ? '<h4 style="font-size:13px;color:var(--ink-soft);margin:16px 0 6px;font-weight:500">אופן ההכנה</h4><p style="margin:0;font-size:14px;line-height:1.8;white-space:pre-wrap">' + esc(r.instructions) + '</p>' : '') +
       (r.link ? '<a href="' + esc(r.link) + '" target="_blank" rel="noreferrer" class="rf-btn rf-btn-outline" style="margin-top:16px;text-decoration:none;display:inline-flex">🔗 פתיחת המתכון המקורי</a>' : '') +
-      '<button type="button" id="rf-add-shop" class="rf-details-link" style="margin-top:12px;width:100%;justify-content:center;padding:11px">🛒 הוספת המרכיבים לרשימת הקניות</button>' +
+      '<button type="button" id="rf-add-shop" class="rf-details-link" style="margin-top:12px;width:100%;justify-content:center;padding:11px">🛒 הוספה לרשימת הקניות</button>' +
+      '<div id="rf-shop-picker"></div>' +
       '<div style="display:flex;gap:8px;margin-top:20px;border-top:1px solid var(--line);padding-top:14px">' +
       '<button type="button" id="rf-edit" class="rf-btn rf-btn-outline">✏️ עריכה</button>' +
       '<button type="button" id="rf-delete" class="rf-btn rf-btn-outline">🗑 מחיקה</button>' +
@@ -654,15 +655,19 @@
     }).join("");
 
     var hasChecked = state.shoppingItems.some(function (i) { return i.checked; });
+    var hasAny = state.shoppingItems.length > 0;
 
     return (
       '<div style="position:relative;margin-bottom:14px">' +
-      '<input id="rf-shop-input" class="rf-input" placeholder="הוסיפו פריט לרשימה (אפשר כמה, מופרדים בפסיק)" />' +
+      '<input id="rf-shop-input" class="rf-input" placeholder="הוסיפו פריט לרשימה" />' +
       '</div>' +
       (rows
         ? '<div class="rf-card" style="padding:6px 14px">' + rows + '</div>'
         : '<div class="rf-card" style="padding:20px;text-align:center;color:var(--ink-soft)">הרשימה ריקה כרגע 🛒</div>') +
-      (hasChecked ? '<button type="button" id="rf-shop-clear" class="rf-details-link" style="margin-top:14px">נקה מסומנים</button>' : '')
+      '<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">' +
+      (hasChecked ? '<button type="button" id="rf-shop-clear" class="rf-details-link">נקה מסומנים</button>' : '') +
+      (hasAny ? '<button type="button" id="rf-shop-clear-all" class="rf-btn-outline rf-btn">🗑 הסר הכל</button>' : '') +
+      '</div>'
     );
   }
 
@@ -692,6 +697,10 @@
     });
     var clearBtn = document.getElementById("rf-shop-clear");
     if (clearBtn) clearBtn.addEventListener("click", clearCheckedShoppingItems);
+    var clearAllBtn = document.getElementById("rf-shop-clear-all");
+    if (clearAllBtn) clearAllBtn.addEventListener("click", function () {
+      if (confirm("להסיר את כל הפריטים מרשימת הקניות?")) clearAllShoppingItems();
+    });
   }
 
   function render() {
@@ -788,9 +797,30 @@
     });
     var addShop = document.getElementById("rf-add-shop");
     if (addShop) addShop.addEventListener("click", function () {
-      addRecipeIngredientsToShopping(state.activeId);
-      addShop.textContent = "✓ נוסף לרשימת הקניות";
-      setTimeout(function () { if (addShop) addShop.textContent = "🛒 הוספת המרכיבים לרשימת הקניות"; }, 1800);
+      var box = document.getElementById("rf-shop-picker");
+      if (box.getAttribute("data-open") === "1") {
+        box.innerHTML = ""; box.removeAttribute("data-open");
+        return;
+      }
+      var r = state.recipes.find(function (x) { return x.id === state.activeId; });
+      if (!r) return;
+      box.innerHTML =
+        '<div class="rf-card" style="padding:12px;margin-top:10px">' +
+        r.ingredients.map(function (ing, idx) {
+          return '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:14px">' +
+            '<input type="checkbox" class="rf-shop-pick-cb" value="' + esc(ing) + '" checked style="width:18px;height:18px;flex-shrink:0">' +
+            esc(ing) + '</label>';
+        }).join("") +
+        '<button type="button" id="rf-shop-pick-confirm" class="rf-btn" style="margin-top:10px;width:100%;justify-content:center">הוספת הנבחרים</button>' +
+        '</div>';
+      box.setAttribute("data-open", "1");
+      document.getElementById("rf-shop-pick-confirm").addEventListener("click", function () {
+        var chosen = Array.prototype.slice.call(box.querySelectorAll(".rf-shop-pick-cb:checked")).map(function (cb) { return cb.value; });
+        if (chosen.length) addShoppingItems(chosen);
+        box.innerHTML = ""; box.removeAttribute("data-open");
+        addShop.textContent = "✓ נוסף לרשימת הקניות";
+        setTimeout(function () { if (addShop) addShop.textContent = "🛒 הוספה לרשימת הקניות"; }, 1800);
+      });
     });
   }
 
