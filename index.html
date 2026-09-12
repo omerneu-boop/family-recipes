@@ -20,57 +20,92 @@
 
 <style>
   #rf-app {
-    --paper: #FAF6EC; --paper-2: #F1E9D8; --ink: #2B2118; --ink-soft: #6B5D4C;
-    --line: #DED2BA; --olive: #56634A; --olive-soft: #E4E7DA; --mustard: #C98A2C; --brick: #9A4B3A;
+    --paper: #FBF7ED; --paper-2: #F1E9D8; --ink: #2B2118; --ink-soft: #7A6E5C;
+    --line: #E5DBC4; --forest: #3E6350; --forest-soft: #E3EFE0; --terracotta: #D2653A;
+    --olive: #3E6350; --olive-soft: #E3EFE0; --mustard: #C98A2C; --brick: #B04A3A;
     font-family: 'Rubik', sans-serif;
     background: var(--paper); color: var(--ink);
     min-height: 100vh; padding: 20px 16px 80px; box-sizing: border-box;
   }
-  @import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=Rubik:wght@400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=Rubik:wght@400;500;600;700&display=swap');
   #rf-app * { box-sizing: border-box; }
   .rf-title { font-family: 'Frank Ruhl Libre', serif; font-weight: 700; }
-  .rf-card { background: var(--paper); border: 1px solid var(--line); border-radius: 4px; }
+  .rf-card { background: #fff; border: 1px solid var(--line); border-radius: 18px; }
   .rf-btn {
-    border: 1px solid var(--ink); background: var(--ink); color: var(--paper); border-radius: 3px;
-    padding: 10px 16px; font-family: 'Rubik', sans-serif; font-size: 14px; font-weight: 500;
+    border: 1px solid var(--forest); background: var(--forest); color: #fff; border-radius: 24px;
+    padding: 10px 18px; font-family: 'Rubik', sans-serif; font-size: 14px; font-weight: 600;
     cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
   }
   .rf-btn:active { transform: translateY(1px); }
   .rf-btn-outline { background: transparent; color: var(--ink); border: 1px solid var(--line); }
   .rf-input {
-    width: 100%; border: 1px solid var(--line); background: var(--paper); border-radius: 3px;
-    padding: 10px 12px; font-family: 'Rubik', sans-serif; font-size: 15px; color: var(--ink);
+    width: 100%; border: 1px solid var(--line); background: #fff; border-radius: 24px;
+    padding: 12px 14px; font-family: 'Rubik', sans-serif; font-size: 15px; color: var(--ink);
   }
-  .rf-input:focus, .rf-btn:focus, .rf-chip:focus { outline: 2px solid var(--olive); outline-offset: 1px; }
+  .rf-input:focus, .rf-btn:focus, .rf-chip:focus { outline: 2px solid var(--forest); outline-offset: 1px; }
   .rf-chip {
-    border: 1px solid var(--line); border-radius: 20px; padding: 6px 13px; font-size: 13px;
-    cursor: pointer; background: var(--paper); color: var(--ink-soft); display: inline-flex; align-items: center; gap: 5px;
+    border: 1px solid transparent; border-radius: 24px; padding: 8px 15px; font-size: 13px; font-weight: 600;
+    cursor: pointer; background: var(--paper-2); color: var(--ink-soft); display: inline-flex; align-items: center; gap: 6px;
   }
-  .rf-chip.on { background: var(--olive-soft); border-color: var(--olive); color: var(--olive); font-weight: 500; }
-  .rf-badge { font-size: 12px; padding: 3px 9px; border-radius: 20px; font-weight: 500; display: inline-block; }
+  .rf-chip.on { border-color: currentColor; box-shadow: inset 0 0 0 1px currentColor; }
+  .rf-badge { font-size: 12px; padding: 3px 9px; border-radius: 20px; font-weight: 600; display: inline-block; }
   .rf-suggest {
     position: absolute; z-index: 5; top: calc(100% + 4px); right: 0; left: 0;
-    background: var(--paper); border: 1px solid var(--line); border-radius: 4px;
+    background: #fff; border: 1px solid var(--line); border-radius: 12px;
     box-shadow: 0 4px 10px rgba(43,33,24,0.12); overflow: hidden;
   }
   .rf-suggest button {
     display: block; width: 100%; text-align: right; padding: 9px 12px; font-size: 14px;
     background: none; border: none; cursor: pointer; color: var(--ink); font-family: 'Rubik', sans-serif;
   }
-  .rf-suggest button:hover { background: var(--olive-soft); }
+  .rf-suggest button:hover { background: var(--paper-2); }
+
+  .rf-list { display: flex; flex-direction: column; gap: 18px; }
+  .rf-bigcard {
+    cursor: pointer; overflow: hidden; box-shadow: 0 2px 10px rgba(43,33,24,0.06);
+  }
+  .rf-bigcard-imgwrap { position: relative; }
+  .rf-bigcard-img { width: 100%; height: 210px; object-fit: cover; display: block; background: var(--paper-2); }
+  .rf-bigcard-placeholder {
+    width: 100%; height: 210px; background: var(--paper-2); display: flex; align-items: center; justify-content: center; font-size: 40px;
+  }
+  .rf-fav {
+    position: absolute; bottom: 10px; right: 10px; background: rgba(255,255,255,.92); border-radius: 20px;
+    padding: 5px 11px; font-size: 14px; display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0,0,0,.15);
+  }
+  .rf-bigcard-body { padding: 16px; }
+  .rf-bigcard-meta { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink-soft); margin: 10px 0; flex-wrap: wrap; }
+  .rf-bigcard-meta span { display: inline-flex; align-items: center; gap: 4px; }
+  .rf-bigcard-desc { font-size: 13px; color: var(--ink-soft); line-height: 1.6; margin: 0 0 12px; }
+  .rf-details-link {
+    display: inline-flex; align-items: center; gap: 4px; background: var(--forest-soft); color: var(--forest);
+    border: none; border-radius: 20px; padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer;
+  }
+
   .rf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 12px; }
   .rf-tile { display: flex; flex-direction: column; cursor: pointer; overflow: hidden; }
   .rf-tile-img { width: 100%; aspect-ratio: 1/1; object-fit: cover; border-radius: 4px 4px 0 0; display: block; background: var(--paper-2); }
   .rf-tile-placeholder { width: 100%; aspect-ratio: 1/1; border-radius: 4px 4px 0 0; background: var(--paper-2); display: flex; align-items: center; justify-content: center; }
   .rf-tile-body { padding: 10px; }
   .rf-fab {
-    position: fixed; bottom: 22px; left: 20px; border-radius: 50%; width: 52px; height: 52px;
+    position: fixed; bottom: 22px; left: 20px; border-radius: 50%; width: 56px; height: 56px;
     padding: 0; display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 2px 8px rgba(43,33,24,0.25); font-size: 26px; line-height: 1;
+    box-shadow: 0 4px 14px rgba(62,99,80,0.45); font-size: 28px; line-height: 1;
   }
   .rf-label { font-size: 13px; color: var(--ink-soft); display: block; margin-bottom: 6px; }
   .rf-status { font-size: 12px; margin-top: 10px; }
+  .rf-signoff { text-align: center; color: var(--ink-soft); font-size: 13px; margin-top: 24px; opacity: .7; }
 </style>
+
+<script>
+  var CATEGORY_META = {
+    "בשר טחון": { icon: "🍖", bg: "#FBE7C9", fg: "#A5691F" },
+    "עוף טחון": { icon: "🍗", bg: "#F7E1E1", fg: "#B85C5C" },
+    "בשר": { icon: "🥩", bg: "#E9DCEE", fg: "#7A5490" },
+    "צמחוני": { icon: "🌿", bg: "#E3EFE0", fg: "#3E6350" }
+  };
+</script>
 
 <script>
 (function () {
@@ -277,40 +312,63 @@
   function renderRecipeCard(r) {
     var tm = timeMeta(r.time);
     var img = r.image
-      ? '<img src="' + r.image + '" class="rf-tile-img" alt="" />'
-      : '<div class="rf-tile-placeholder"><span style="font-size:22px;opacity:.4">🍽</span></div>';
+      ? '<img src="' + r.image + '" class="rf-bigcard-img" alt="" />'
+      : '<div class="rf-bigcard-placeholder">🍽</div>';
+    var cm = CATEGORY_META[r.mainIngredient];
+    var teaser = r.instructions ? r.instructions.slice(0, 90) + (r.instructions.length > 90 ? "…" : "") : r.ingredients.slice(0, 5).join(" · ");
     return (
-      '<div class="rf-card rf-tile" data-open="' + r.id + '">' + img +
-      '<div class="rf-tile-body">' +
-      '<h3 style="margin:0;font-size:14px;font-family:\'Frank Ruhl Libre\',serif;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">' + esc(r.name) + '</h3>' +
-      '<div style="display:flex;gap:6px;margin-top:8px;align-items:center;flex-wrap:wrap">' +
-      '<span class="rf-badge" style="background:' + tm.color + '22;color:' + tm.color + '">' + tm.label + '</span>' +
-      (r.link ? '<span style="font-size:12px;color:var(--mustard)">🔗</span>' : '') +
+      '<div class="rf-card rf-bigcard" data-open="' + r.id + '">' +
+      '<div class="rf-bigcard-imgwrap">' + img +
+      '<span class="rf-fav" data-fav="' + r.id + '">' + (r.favorite ? "❤️" : "🤍") + '</span>' +
       '</div>' +
-      (r.mainIngredient ? '<p style="margin:6px 0 0;font-size:11px;color:var(--ink-soft)">' + esc(r.mainIngredient) + '</p>' : '') +
+      '<div class="rf-bigcard-body">' +
+      '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">' +
+      '<h3 class="rf-title" style="margin:0;font-size:19px">' + esc(r.name) + '</h3>' +
+      '</div>' +
+      '<div style="margin-top:8px">' +
+      '<span class="rf-badge" style="background:' + tm.color + '22;color:' + tm.color + '">⚡ ' + tm.label + '</span>' +
+      (cm ? ' <span class="rf-badge" style="background:' + cm.bg + ';color:' + cm.fg + '">' + cm.icon + ' ' + esc(r.mainIngredient) + '</span>' : '') +
+      '</div>' +
+      '<div class="rf-bigcard-meta">' +
+      '<span>🕐 הכנה: ' + tm.hint + '</span>' +
+      '<span>|</span>' +
+      '<span>🍴 ' + r.ingredients.length + ' מרכיבים</span>' +
+      (r.link ? '<span>|</span><span>🔗 יש קישור</span>' : '') +
+      '</div>' +
+      (teaser ? '<p class="rf-bigcard-desc">' + esc(teaser) + '</p>' : '') +
+      '<button type="button" class="rf-details-link" data-open="' + r.id + '">לפרטים מלאים ←</button>' +
       '</div></div>'
     );
+  }
+
+  function toggleFavorite(id) {
+    var r = state.recipes.find(function (x) { return x.id === id; });
+    if (!r) return;
+    db.collection("recipes").doc(id).update({ favorite: !r.favorite }).catch(function () {});
   }
 
   function renderList() {
     var recipes = filteredRecipes();
     var catsHtml = MAIN_INGREDIENT_OPTIONS.map(function (c) {
-      return '<button type="button" class="rf-chip ' + (state.activeCategories.indexOf(c) !== -1 ? "on" : "") + '" data-cat="' + esc(c) + '">' + c + '</button>';
+      var cm = CATEGORY_META[c];
+      var on = state.activeCategories.indexOf(c) !== -1;
+      return '<button type="button" class="rf-chip ' + (on ? "on" : "") + '" style="background:' + cm.bg + ';color:' + cm.fg + '" data-cat="' + esc(c) + '">' + cm.icon + ' ' + c + '</button>';
     }).join("");
 
-    var gridHtml = recipes.length
-      ? '<div class="rf-grid">' + recipes.map(renderRecipeCard).join("") + '</div>'
+    var listHtml = recipes.length
+      ? '<div class="rf-list">' + recipes.map(renderRecipeCard).join("") + '</div>'
       : '<div class="rf-card" style="padding:20px;text-align:center;color:var(--ink-soft)">לא נמצאו מתכונים תואמים.</div>';
 
     return (
       '<div style="position:relative">' +
-      '<span style="position:absolute;right:12px;top:12px;color:var(--ink-soft)">🔍</span>' +
-      '<input id="rf-search" class="rf-input" style="padding-right:36px" placeholder="הקלידו מרכיבים שיש לכם, מופרדים בפסיק" value="' + esc(state.query) + '" />' +
+      '<span style="position:absolute;right:14px;top:14px;color:var(--ink-soft)">🔍</span>' +
+      '<input id="rf-search" class="rf-input" style="padding-right:38px" placeholder="הקלידו מרכיבים שיש לכם, מופרדים בפסיק" value="' + esc(state.query) + '" />' +
       '<div id="rf-search-suggest"></div>' +
       '</div>' +
-      '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 16px">' + catsHtml + '</div>' +
-      gridHtml +
-      '<button type="button" id="rf-fab" class="rf-btn rf-fab" aria-label="הוספת מתכון">+</button>'
+      '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 18px">' + catsHtml + '</div>' +
+      listHtml +
+      '<button type="button" id="rf-fab" class="rf-btn rf-fab" aria-label="הוספת מתכון">+</button>' +
+      '<p class="rf-signoff">בתיאבון 🌿</p>'
     );
   }
 
@@ -326,7 +384,7 @@
       '<h2 class="rf-title" style="font-size:22px;margin:0">' + esc(r.name) + '</h2>' +
       '<span class="rf-badge" style="background:' + tm.color + '22;color:' + tm.color + ';white-space:nowrap">' + tm.label + ' · ' + tm.hint + '</span>' +
       '</div>' +
-      (r.mainIngredient ? '<span class="rf-badge" style="background:var(--olive-soft);color:var(--olive);margin-top:10px">' + esc(r.mainIngredient) + '</span>' : '') +
+      (r.mainIngredient && CATEGORY_META[r.mainIngredient] ? '<span class="rf-badge" style="background:' + CATEGORY_META[r.mainIngredient].bg + ';color:' + CATEGORY_META[r.mainIngredient].fg + ';margin-top:10px">' + CATEGORY_META[r.mainIngredient].icon + ' ' + esc(r.mainIngredient) + '</span>' : '') +
       '<h4 style="font-size:13px;color:var(--ink-soft);margin:16px 0 6px;font-weight:500">מרכיבים</h4>' +
       '<ul style="margin:0;padding-right:18px;font-size:14px;line-height:1.9">' +
       (r.ingredients || []).map(function (i) { return '<li>' + esc(i) + '</li>'; }).join("") +
@@ -348,7 +406,8 @@
     }).join("");
     var mainChips = MAIN_INGREDIENT_OPTIONS.map(function (c) {
       var checked = r && r.mainIngredient === c;
-      return '<label class="rf-chip ' + (checked ? "on" : "") + '"><input type="radio" name="rf-main" value="' + c + '" ' + (checked ? "checked" : "") + ' style="display:none">' + c + '</label>';
+      var cm = CATEGORY_META[c];
+      return '<label class="rf-chip ' + (checked ? "on" : "") + '" style="background:' + cm.bg + ';color:' + cm.fg + '"><input type="radio" name="rf-main" value="' + c + '" ' + (checked ? "checked" : "") + ' style="display:none">' + cm.icon + ' ' + c + '</label>';
     }).join("");
 
     return (
@@ -423,9 +482,11 @@
       body = renderList();
     }
     root.innerHTML =
-      '<header style="margin-bottom:18px">' +
-      '<h1 class="rf-title" style="font-size:26px;margin:0">🍳 המתכונים של המשפחה</h1>' +
-      '<p style="color:var(--ink-soft);font-size:13px;margin:4px 0 0">כל מה שאנחנו אוהבים להכין, במקום אחד</p>' +
+      '<header style="margin-bottom:18px;text-align:center">' +
+      '<div style="font-size:34px;margin-bottom:4px">🍲</div>' +
+      '<h1 class="rf-title" style="font-size:25px;margin:0;color:var(--forest)">המתכונים של המשפחה</h1>' +
+      '<div style="color:var(--terracotta);font-size:13px;margin:2px 0">⟿ ♡ ⟿</div>' +
+      '<p style="color:var(--ink-soft);font-size:13px;margin:2px 0 0">כל מה שאנחנו אוהבים להכין, במקום אחד</p>' +
       '</header>' + body;
 
     if (state.view === "form") { renderImageWrap(); wireForm(); }
@@ -448,6 +509,12 @@
     });
     root.querySelectorAll("[data-open]").forEach(function (card) {
       card.addEventListener("click", function () { openDetail(card.getAttribute("data-open")); });
+    });
+    root.querySelectorAll("[data-fav]").forEach(function (el) {
+      el.addEventListener("click", function (e) {
+        e.stopPropagation();
+        toggleFavorite(el.getAttribute("data-fav"));
+      });
     });
     var fab = document.getElementById("rf-fab");
     if (fab) fab.addEventListener("click", openNewForm);
