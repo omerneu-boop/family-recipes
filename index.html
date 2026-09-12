@@ -103,6 +103,23 @@
   .rf-label { font-size: 13px; color: var(--ink-soft); display: block; margin-bottom: 6px; }
   .rf-status { font-size: 12px; margin-top: 10px; }
   .rf-signoff { text-align: center; color: var(--ink-soft); font-size: 13px; margin-top: 24px; opacity: .7; }
+  .rf-tabs { display: flex; gap: 8px; margin: 16px 0; background: var(--paper-2); border-radius: 24px; padding: 4px; }
+  .rf-tab {
+    flex: 1; text-align: center; padding: 9px 6px; border-radius: 20px; font-size: 14px; font-weight: 600;
+    cursor: pointer; color: var(--ink-soft); border: none; background: transparent; display: inline-flex;
+    align-items: center; justify-content: center; gap: 5px;
+  }
+  .rf-tab.on { background: var(--forest); color: #fff; }
+  .rf-shop-row {
+    display: flex; align-items: center; gap: 10px; padding: 11px 4px; border-bottom: 1px solid var(--line);
+  }
+  .rf-shop-check {
+    width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--line); flex-shrink: 0; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; font-size: 13px; color: #fff;
+  }
+  .rf-shop-check.on { background: var(--forest); border-color: var(--forest); }
+  .rf-shop-name { flex: 1; font-size: 15px; }
+  .rf-shop-name.done { text-decoration: line-through; color: var(--ink-soft); }
 </style>
 
 <script>
@@ -148,6 +165,7 @@
   var connErrorMsg = "";
 
   var state = {
+    tab: "recipes", // recipes | shopping
     recipes: [],
     loading: true,
     view: "list", // list | detail | form
@@ -157,7 +175,9 @@
     formIngredients: [],
     formImage: "",
     formImgBusy: false,
-    formError: ""
+    formError: "",
+    shoppingItems: [],
+    shoppingLoading: true
   };
 
   function allIngredients() {
@@ -240,6 +260,23 @@
         connStatus = "error";
         connErrorMsg = err && err.message ? err.message : String(err);
         state.loading = false;
+        render();
+      }
+    );
+    db.collection("shopping").onSnapshot(
+      function (snap) {
+        var items = [];
+        snap.forEach(function (doc) { items.push(Object.assign({ id: doc.id }, doc.data())); });
+        items.sort(function (a, b) {
+          if (!!a.checked !== !!b.checked) return a.checked ? 1 : -1;
+          return (a.name || "").localeCompare(b.name || "", "he");
+        });
+        state.shoppingItems = items;
+        state.shoppingLoading = false;
+        render();
+      },
+      function (err) {
+        state.shoppingLoading = false;
         render();
       }
     );
@@ -405,6 +442,44 @@
     db.collection("recipes").doc(id).update({ favorite: !r.favorite }).catch(function () {});
   }
 
+  // ---------- Shopping list ----------
+  function addShoppingItems(names) {
+    var existing = state.shoppingItems.map(function (i) { return (i.name || "").trim(); });
+    var batch = db.batch();
+    var any = false;
+    names.forEach(function (raw) {
+      var name = raw.trim();
+      if (!name || existing.indexOf(name) !== -1) return;
+      existing.push(name);
+      var ref = db.collection("shopping").doc();
+      batch.set(ref, { name: name, checked: false });
+      any = true;
+    });
+    if (any) batch.commit().catch(function () {});
+  }
+
+  function toggleShoppingItem(id) {
+    var item = state.shoppingItems.find(function (x) { return x.id === id; });
+    if (!item) return;
+    db.collection("shopping").doc(id).update({ checked: !item.checked }).catch(function () {});
+  }
+
+  function deleteShoppingItem(id) {
+    db.collection("shopping").doc(id).delete().catch(function () {});
+  }
+
+  function clearCheckedShoppingItems() {
+    var batch = db.batch();
+    state.shoppingItems.forEach(function (i) { if (i.checked) batch.delete(db.collection("shopping").doc(i.id)); });
+    batch.commit().catch(function () {});
+  }
+
+  function addRecipeIngredientsToShopping(recipeId) {
+    var r = state.recipes.find(function (x) { return x.id === recipeId; });
+    if (!r) return;
+    addShoppingItems(r.ingredients || []);
+  }
+
   function renderList() {
     var catsHtml = MAIN_INGREDIENT_OPTIONS.map(function (c) {
       var cm = CATEGORY_META[c];
@@ -481,6 +556,7 @@
       '</ul>' +
       (r.instructions ? '<h4 style="font-size:13px;color:var(--ink-soft);margin:16px 0 6px;font-weight:500">אופן ההכנה</h4><p style="margin:0;font-size:14px;line-height:1.8;white-space:pre-wrap">' + esc(r.instructions) + '</p>' : '') +
       (r.link ? '<a href="' + esc(r.link) + '" target="_blank" rel="noreferrer" class="rf-btn rf-btn-outline" style="margin-top:16px;text-decoration:none;display:inline-flex">🔗 פתיחת המתכון המקורי</a>' : '') +
+      '<button type="button" id="rf-add-shop" class="rf-details-link" style="margin-top:12px;width:100%;justify-content:center;padding:11px">🛒 הוספת המרכיבים לרשימת הקניות</button>' +
       '<div style="display:flex;gap:8px;margin-top:20px;border-top:1px solid var(--line);padding-top:14px">' +
       '<button type="button" id="rf-edit" class="rf-btn rf-btn-outline">✏️ עריכה</button>' +
       '<button type="button" id="rf-delete" class="rf-btn rf-btn-outline">🗑 מחיקה</button>' +
@@ -554,6 +630,70 @@
   }
 
   // ---------- Master render ----------
+  function renderTabs() {
+    var uncheckedCount = state.shoppingItems.filter(function (i) { return !i.checked; }).length;
+    return (
+      '<div class="rf-tabs">' +
+      '<button type="button" class="rf-tab ' + (state.tab === "recipes" ? "on" : "") + '" data-tab="recipes">🍲 מתכונים</button>' +
+      '<button type="button" class="rf-tab ' + (state.tab === "shopping" ? "on" : "") + '" data-tab="shopping">🛒 רשימת קניות' +
+      (uncheckedCount > 0 ? ' <span class="rf-badge" style="background:rgba(255,255,255,.25);color:inherit">' + uncheckedCount + '</span>' : '') +
+      '</button>' +
+      '</div>'
+    );
+  }
+
+  function renderShopping() {
+    var rows = state.shoppingItems.map(function (i) {
+      return (
+        '<div class="rf-shop-row">' +
+        '<span class="rf-shop-check ' + (i.checked ? "on" : "") + '" data-shop-toggle="' + i.id + '">' + (i.checked ? "✓" : "") + '</span>' +
+        '<span class="rf-shop-name ' + (i.checked ? "done" : "") + '">' + esc(i.name) + '</span>' +
+        '<span data-shop-del="' + i.id + '" style="cursor:pointer;color:var(--ink-soft);padding:4px">✕</span>' +
+        '</div>'
+      );
+    }).join("");
+
+    var hasChecked = state.shoppingItems.some(function (i) { return i.checked; });
+
+    return (
+      '<div style="position:relative;margin-bottom:14px">' +
+      '<input id="rf-shop-input" class="rf-input" placeholder="הוסיפו פריט לרשימה (אפשר כמה, מופרדים בפסיק)" />' +
+      '</div>' +
+      (rows
+        ? '<div class="rf-card" style="padding:6px 14px">' + rows + '</div>'
+        : '<div class="rf-card" style="padding:20px;text-align:center;color:var(--ink-soft)">הרשימה ריקה כרגע 🛒</div>') +
+      (hasChecked ? '<button type="button" id="rf-shop-clear" class="rf-details-link" style="margin-top:14px">נקה מסומנים</button>' : '')
+    );
+  }
+
+  function wireShopping() {
+    var input = document.getElementById("rf-shop-input");
+    if (input) {
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          if (input.value.trim()) { addShoppingItems(input.value.split(",")); input.value = ""; }
+        }
+      });
+      input.addEventListener("input", function () {
+        if (input.value.indexOf(",") !== -1) {
+          var parts = input.value.split(",");
+          var remainder = parts.pop();
+          addShoppingItems(parts);
+          input.value = remainder.replace(/^\s+/, "");
+        }
+      });
+    }
+    root.querySelectorAll("[data-shop-toggle]").forEach(function (el) {
+      el.addEventListener("click", function () { toggleShoppingItem(el.getAttribute("data-shop-toggle")); });
+    });
+    root.querySelectorAll("[data-shop-del]").forEach(function (el) {
+      el.addEventListener("click", function () { deleteShoppingItem(el.getAttribute("data-shop-del")); });
+    });
+    var clearBtn = document.getElementById("rf-shop-clear");
+    if (clearBtn) clearBtn.addEventListener("click", clearCheckedShoppingItems);
+  }
+
   function render() {
     if (connStatus === "error") {
       root.innerHTML =
@@ -562,7 +702,9 @@
       return;
     }
     var body;
-    if (state.loading) {
+    if (state.tab === "shopping") {
+      body = state.shoppingLoading ? '<p style="color:var(--ink-soft)">טוען...</p>' : renderShopping();
+    } else if (state.loading) {
       body = '<p style="color:var(--ink-soft)">טוען...</p>';
     } else if (state.view === "form") {
       body = renderForm();
@@ -577,8 +719,17 @@
       '<h1 class="rf-title" style="font-size:25px;margin:0;color:var(--forest)">המתכונים של המשפחה</h1>' +
       '<div style="color:var(--terracotta);font-size:13px;margin:2px 0">⟿ ♡ ⟿</div>' +
       '<p style="color:var(--ink-soft);font-size:13px;margin:2px 0 0">מה מבשלים היום?</p>' +
-      '</header>' + body;
+      '</header>' +
+      renderTabs() + body;
 
+    root.querySelectorAll("[data-tab]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        state.tab = btn.getAttribute("data-tab");
+        render();
+      });
+    });
+
+    if (state.tab === "shopping") { wireShopping(); return; }
     if (state.view === "form") { renderImageWrap(); wireForm(); }
     if (state.view === "list") wireList();
     if (state.view === "detail") wireDetail();
@@ -634,6 +785,12 @@
     var del = document.getElementById("rf-delete");
     if (del) del.addEventListener("click", function () {
       if (confirm("למחוק את המתכון?")) deleteRecipe(state.activeId);
+    });
+    var addShop = document.getElementById("rf-add-shop");
+    if (addShop) addShop.addEventListener("click", function () {
+      addRecipeIngredientsToShopping(state.activeId);
+      addShop.textContent = "✓ נוסף לרשימת הקניות";
+      setTimeout(function () { if (addShop) addShop.textContent = "🛒 הוספת המרכיבים לרשימת הקניות"; }, 1800);
     });
   }
 
