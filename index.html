@@ -202,6 +202,7 @@
   }
 
   // ---------- Firebase init ----------
+  history.replaceState({ rfView: "list", rfId: null }, "");
   var sessionOrder = null; // ids in shuffled order, fixed for this page load
 
   function applySessionOrder(list) {
@@ -249,10 +250,15 @@
   }
 
   // ---------- Actions ----------
-  function openDetail(id) { state.activeId = id; state.view = "detail"; render(); }
+  function openDetail(id) {
+    state.activeId = id; state.view = "detail";
+    history.pushState({ rfView: "detail", rfId: id }, "");
+    render();
+  }
   function openNewForm() {
     state.activeId = null; state.view = "form";
     state.formIngredients = []; state.formImage = ""; state.formError = "";
+    history.pushState({ rfView: "form", rfId: null }, "");
     render();
   }
   function openEditForm(id) {
@@ -261,9 +267,33 @@
     state.formIngredients = (r && r.ingredients) ? r.ingredients.slice() : [];
     state.formImage = (r && r.image) || "";
     state.formError = "";
+    history.pushState({ rfView: "form", rfId: id }, "");
     render();
   }
-  function backToList() { state.view = "list"; state.activeId = null; render(); }
+  // "Back" always means: go back one step in our own navigation history,
+  // so the phone's physical/browser back button stays inside the app
+  // (list -> detail -> form) instead of leaving the site.
+  function backToList() { history.back(); }
+
+  window.addEventListener("popstate", function (e) {
+    var s = e.state || { rfView: "list", rfId: null };
+    if (s.rfView === "form") {
+      var id = s.rfId;
+      var r = id ? state.recipes.find(function (x) { return x.id === id; }) : null;
+      state.activeId = id;
+      state.view = "form";
+      state.formIngredients = (r && r.ingredients) ? r.ingredients.slice() : [];
+      state.formImage = (r && r.image) || "";
+      state.formError = "";
+    } else if (s.rfView === "detail") {
+      state.activeId = s.rfId;
+      state.view = "detail";
+    } else {
+      state.activeId = null;
+      state.view = "list";
+    }
+    render();
+  });
 
   function deleteRecipe(id) {
     db.collection("recipes").doc(id).delete().catch(function (err) {
@@ -674,9 +704,7 @@
     wireImageControls();
 
     var saveBtn = document.getElementById("rf-save"); if (saveBtn) saveBtn.addEventListener("click", saveRecipeFromForm);
-    var cancelBtn = document.getElementById("rf-cancel"); if (cancelBtn) cancelBtn.addEventListener("click", function () {
-      state.view = state.activeId ? "detail" : "list"; render();
-    });
+    var cancelBtn = document.getElementById("rf-cancel"); if (cancelBtn) cancelBtn.addEventListener("click", backToList);
   }
 
   function wireImageControls() {
