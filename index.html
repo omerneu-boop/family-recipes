@@ -202,6 +202,27 @@
   }
 
   // ---------- Firebase init ----------
+  var sessionOrder = null; // ids in shuffled order, fixed for this page load
+
+  function applySessionOrder(list) {
+    if (sessionOrder === null) {
+      // Fisher-Yates shuffle, once per page load
+      for (var i = list.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var tmp = list[i]; list[i] = list[j]; list[j] = tmp;
+      }
+      sessionOrder = list.map(function (r) { return r.id; });
+      return list;
+    }
+    var byId = {};
+    list.forEach(function (r) { byId[r.id] = r; });
+    var ordered = [];
+    sessionOrder.forEach(function (id) { if (byId[id]) { ordered.push(byId[id]); delete byId[id]; } });
+    // any new recipes not yet in the session order get appended (and remembered)
+    Object.keys(byId).forEach(function (id) { ordered.push(byId[id]); sessionOrder.push(id); });
+    return ordered;
+  }
+
   try {
     app = firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
@@ -209,8 +230,7 @@
       function (snap) {
         var list = [];
         snap.forEach(function (doc) { list.push(Object.assign({ id: doc.id }, doc.data())); });
-        list.sort(function (a, b) { return (a.name || "").localeCompare(b.name || "", "he"); });
-        state.recipes = list;
+        state.recipes = applySessionOrder(list);
         state.loading = false;
         connStatus = "ok";
         render();
