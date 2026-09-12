@@ -48,6 +48,13 @@
     cursor: pointer; background: var(--paper-2); color: var(--ink-soft); display: inline-flex; align-items: center; gap: 6px;
   }
   .rf-chip.on { border-color: currentColor; box-shadow: inset 0 0 0 1px currentColor; }
+  .rf-catrow { display: flex; flex-wrap: nowrap; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .rf-catrow::-webkit-scrollbar { display: none; }
+  .rf-catchip {
+    border: 1px solid transparent; border-radius: 20px; padding: 6px 10px; font-size: 11.5px; font-weight: 600;
+    cursor: pointer; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; flex-shrink: 0;
+  }
+  .rf-catchip.on { border-color: currentColor; box-shadow: inset 0 0 0 1px currentColor; }
   .rf-badge { font-size: 12px; padding: 3px 9px; border-radius: 20px; font-weight: 600; display: inline-block; }
   .rf-suggest {
     position: absolute; z-index: 5; top: calc(100% + 4px); right: 0; left: 0;
@@ -352,7 +359,7 @@
     var catsHtml = MAIN_INGREDIENT_OPTIONS.map(function (c) {
       var cm = CATEGORY_META[c];
       var on = state.activeCategories.indexOf(c) !== -1;
-      return '<button type="button" class="rf-chip ' + (on ? "on" : "") + '" style="background:' + cm.bg + ';color:' + cm.fg + '" data-cat="' + esc(c) + '">' + cm.icon + ' ' + c + '</button>';
+      return '<button type="button" class="rf-catchip ' + (on ? "on" : "") + '" style="background:' + cm.bg + ';color:' + cm.fg + '" data-cat="' + esc(c) + '">' + cm.icon + ' ' + c + '</button>';
     }).join("");
 
     return (
@@ -361,7 +368,7 @@
       '<input id="rf-search" class="rf-input" style="padding-right:38px" placeholder="חיפוש לפי רכיב או שם מנה" value="' + esc(state.query) + '" />' +
       '<div id="rf-search-suggest"></div>' +
       '</div>' +
-      '<div style="display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 18px">' + catsHtml + '</div>' +
+      '<div class="rf-catrow" style="margin:14px 0 18px">' + catsHtml + '</div>' +
       '<button type="button" id="rf-random" class="rf-details-link" style="width:100%;justify-content:center;margin-bottom:16px;padding:12px">🎲 הפתיעו אותי — מנה רנדומלית</button>' +
       '<div id="rf-results">' + buildResultsHtml() + '</div>' +
       '<button type="button" id="rf-fab" class="rf-btn rf-fab" aria-label="הוספת מתכון">+</button>' +
