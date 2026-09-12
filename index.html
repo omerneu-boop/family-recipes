@@ -103,6 +103,7 @@
     "בשר טחון": { icon: "🍖", bg: "#FBE7C9", fg: "#A5691F" },
     "עוף טחון": { icon: "🍗", bg: "#F7E1E1", fg: "#B85C5C" },
     "בשר": { icon: "🥩", bg: "#E9DCEE", fg: "#7A5490" },
+    "דג": { icon: "🐟", bg: "#DCEBF2", fg: "#3E7690" },
     "צמחוני": { icon: "🌿", bg: "#E3EFE0", fg: "#3E6350" }
   };
 </script>
@@ -123,7 +124,7 @@
     { key: "medium", label: "בינוני", hint: "20–45 דק׳", color: "#C98A2C" },
     { key: "long", label: "ארוך", hint: "45 דק׳ ומעלה", color: "#9A4B3A" }
   ];
-  var MAIN_INGREDIENT_OPTIONS = ["בשר טחון", "עוף טחון", "בשר", "צמחוני"];
+  var MAIN_INGREDIENT_OPTIONS = ["בשר טחון", "עוף טחון", "בשר", "דג", "צמחוני"];
   function timeMeta(key) {
     for (var i = 0; i < TIME_OPTIONS.length; i++) if (TIME_OPTIONS[i].key === key) return TIME_OPTIONS[i];
     return TIME_OPTIONS[0];
