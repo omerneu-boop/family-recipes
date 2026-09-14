@@ -217,8 +217,12 @@
   function filteredRecipes() {
     var tokens = state.query.split(",").map(function (t) { return t.trim(); }).filter(Boolean);
     return state.recipes.filter(function (r) {
-      if (state.activeCategories.length > 0 && state.activeCategories.indexOf(r.mainIngredient) === -1) return false;
-      if (state.freezerOnly && FREEZER_TRACKED_CATS.indexOf(r.mainIngredient) !== -1 && !hasFreezerStock(r.mainIngredient)) return false;
+      var cats = r.mainIngredients || [];
+      if (state.activeCategories.length > 0 && !cats.some(function (c) { return state.activeCategories.indexOf(c) !== -1; })) return false;
+      if (state.freezerOnly) {
+        var trackedOk = cats.some(function (c) { return FREEZER_TRACKED_CATS.indexOf(c) === -1 || hasFreezerStock(c); });
+        if (!trackedOk && cats.length > 0) return false;
+      }
       if (tokens.length === 0) return true;
       return tokens.every(function (tok) {
         return (r.ingredients || []).some(function (entry) {
@@ -282,9 +286,19 @@
         var list = [];
         snap.forEach(function (doc) { list.push(Object.assign({ id: doc.id }, doc.data())); });
         list.forEach(function (r) {
-          if (OLD_MEAT_CATS.indexOf(r.mainIngredient) !== -1) {
-            r.mainIngredient = "בשר"; // reflect immediately in the UI
-            db.collection("recipes").doc(r.id).update({ mainIngredient: "בשר" }).catch(function () {});
+          if (!Array.isArray(r.mainIngredients)) {
+            var single = r.mainIngredient || "";
+            if (OLD_MEAT_CATS.indexOf(single) !== -1) single = "בשר";
+            r.mainIngredients = single ? [single] : [];
+            db.collection("recipes").doc(r.id).update({ mainIngredients: r.mainIngredients }).catch(function () {});
+          } else if (r.mainIngredients.some(function (c) { return OLD_MEAT_CATS.indexOf(c) !== -1; })) {
+            var fixed = [];
+            r.mainIngredients.forEach(function (c) {
+              var v = OLD_MEAT_CATS.indexOf(c) !== -1 ? "בשר" : c;
+              if (fixed.indexOf(v) === -1) fixed.push(v);
+            });
+            r.mainIngredients = fixed;
+            db.collection("recipes").doc(r.id).update({ mainIngredients: fixed }).catch(function () {});
           }
         });
         state.recipes = applySessionOrder(list);
@@ -392,7 +406,7 @@
   function saveRecipeFromForm() {
     var nameEl = document.getElementById("rf-f-name");
     var timeEl = root.querySelector('input[name="rf-time"]:checked');
-    var mainEl = root.querySelector('input[name="rf-main"]:checked');
+    var mainEls = root.querySelectorAll('input[name="rf-main"]:checked');
     var linkEl = document.getElementById("rf-f-link");
     var instrEl = document.getElementById("rf-f-instructions");
     var ingInput = document.getElementById("rf-ing-input");
@@ -417,7 +431,7 @@
       name: name,
       ingredients: state.formIngredients,
       time: timeEl ? timeEl.value : "quick",
-      mainIngredient: mainEl ? mainEl.value : "",
+      mainIngredients: Array.prototype.map.call(mainEls, function (el) { return el.value; }),
       link: linkEl.value.trim(),
       instructions: instrEl.value.trim(),
       image: state.formImage || ""
@@ -448,6 +462,14 @@
   }
 
   // ---------- Render: pieces ----------
+  function categoryBadgesHtml(cats) {
+    return (cats || []).map(function (c) {
+      var cm = CATEGORY_META[c];
+      if (!cm) return "";
+      return ' <span class="rf-badge" style="background:' + cm.bg + ';color:' + cm.fg + '">' + cm.icon + ' ' + esc(c) + '</span>';
+    }).join("");
+  }
+
   function renderIngredientChips() {
     return state.formIngredients.map(function (ing, idx) {
       return '<span class="rf-chip on" data-idx="' + idx + '">' +
@@ -462,7 +484,6 @@
     var img = r.image
       ? '<img src="' + r.image + '" class="rf-bigcard-img" alt="" />'
       : '<div class="rf-bigcard-placeholder">🍽</div>';
-    var cm = CATEGORY_META[r.mainIngredient];
     var teaser = r.instructions ? r.instructions.slice(0, 90) + (r.instructions.length > 90 ? "…" : "") : r.ingredients.slice(0, 5).map(ingredientLabel).join(" · ");
     return (
       '<div class="rf-card rf-bigcard" data-open="' + r.id + '">' +
@@ -475,7 +496,7 @@
       '</div>' +
       '<div style="margin-top:8px">' +
       '<span class="rf-badge" style="background:' + tm.color + '22;color:' + tm.color + '">⚡ ' + tm.label + '</span>' +
-      (cm ? ' <span class="rf-badge" style="background:' + cm.bg + ';color:' + cm.fg + '">' + cm.icon + ' ' + esc(r.mainIngredient) + '</span>' : '') +
+      categoryBadgesHtml(r.mainIngredients) +
       '</div>' +
       '<div class="rf-bigcard-meta">' +
       '<span>🕐 הכנה: ' + tm.hint + '</span>' +
@@ -667,7 +688,7 @@
       '<h2 class="rf-title" style="font-size:22px;margin:0">' + esc(r.name) + '</h2>' +
       '<span class="rf-badge" style="background:' + tm.color + '22;color:' + tm.color + ';white-space:nowrap">' + tm.label + ' · ' + tm.hint + '</span>' +
       '</div>' +
-      (r.mainIngredient && CATEGORY_META[r.mainIngredient] ? '<span class="rf-badge" style="background:' + CATEGORY_META[r.mainIngredient].bg + ';color:' + CATEGORY_META[r.mainIngredient].fg + ';margin-top:10px">' + CATEGORY_META[r.mainIngredient].icon + ' ' + esc(r.mainIngredient) + '</span>' : '') +
+      '<div style="margin-top:10px">' + categoryBadgesHtml(r.mainIngredients) + '</div>' +
       '<h4 style="font-size:13px;color:var(--ink-soft);margin:16px 0 6px;font-weight:500">מרכיבים</h4>' +
       '<ul style="margin:0;padding-right:18px;font-size:14px;line-height:1.9">' +
       (r.ingredients || []).map(function (i) { return '<li>' + esc(ingredientLabel(i)) + '</li>'; }).join("") +
@@ -690,9 +711,9 @@
       return '<label class="rf-chip ' + (checked ? "on" : "") + '"><input type="radio" name="rf-time" value="' + t.key + '" ' + (checked ? "checked" : "") + ' style="display:none">' + t.label + '</label>';
     }).join("");
     var mainChips = MAIN_INGREDIENT_OPTIONS.map(function (c) {
-      var checked = r && r.mainIngredient === c;
+      var checked = r && (r.mainIngredients || []).indexOf(c) !== -1;
       var cm = CATEGORY_META[c];
-      return '<label class="rf-chip ' + (checked ? "on" : "") + '" style="background:' + cm.bg + ';color:' + cm.fg + '"><input type="radio" name="rf-main" value="' + c + '" ' + (checked ? "checked" : "") + ' style="display:none">' + cm.icon + ' ' + c + '</label>';
+      return '<label class="rf-chip ' + (checked ? "on" : "") + '" style="background:' + cm.bg + ';color:' + cm.fg + '"><input type="checkbox" name="rf-main" value="' + c + '" ' + (checked ? "checked" : "") + ' style="display:none">' + cm.icon + ' ' + c + '</label>';
     }).join("");
 
     return (
@@ -1118,11 +1139,15 @@
   }
 
   function wireForm() {
-    root.querySelectorAll('input[name="rf-time"], input[name="rf-main"]').forEach(function (inp) {
+    root.querySelectorAll('input[name="rf-time"]').forEach(function (inp) {
       inp.addEventListener("change", function () {
-        var group = inp.name;
-        root.querySelectorAll('input[name="' + group + '"]').forEach(function (o) { o.closest("label").classList.remove("on"); });
+        root.querySelectorAll('input[name="rf-time"]').forEach(function (o) { o.closest("label").classList.remove("on"); });
         inp.closest("label").classList.add("on");
+      });
+    });
+    root.querySelectorAll('input[name="rf-main"]').forEach(function (inp) {
+      inp.addEventListener("change", function () {
+        inp.closest("label").classList.toggle("on", inp.checked);
       });
     });
 
