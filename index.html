@@ -974,16 +974,12 @@
       '</div></div>'
     ) : '';
 
-    var hasMissing = state.freezerItems.some(function (i) { return missingAmount(i) > 0; });
-
     return (
-      '<button type="button" id="rf-fz-add-toggle" class="rf-details-link" style="width:100%;justify-content:center;padding:11px;margin-bottom:14px">' +
-      (state.freezerFormOpen ? "✕ סגירה" : "+ הוספת פריט למקפיא") + '</button>' +
       addForm +
       modeToggle +
       sectionsHtml +
-      (!isStock && hasMissing ? '<button type="button" id="rf-fz-add-shop" class="rf-btn" style="width:100%;justify-content:center;margin-top:18px">🛒 הוספת חוסרים לרשימת הקניות</button>' : '') +
-      '<div id="rf-fz-picker"></div>'
+      '<button type="button" id="rf-fz-add-toggle" class="rf-btn rf-fab" aria-label="הוספת פריט למקפיא">' +
+      (state.freezerFormOpen ? "✕" : "+") + '</button>'
     );
   }
 
@@ -1080,32 +1076,6 @@
     });
     root.querySelectorAll("[data-freezer-plus]").forEach(function (el) {
       el.addEventListener("click", function () { adjustFreezerQty(el.getAttribute("data-freezer-plus"), 1); });
-    });
-
-    var addShopBtn = document.getElementById("rf-fz-add-shop");
-    if (addShopBtn) addShopBtn.addEventListener("click", function () {
-      var box = document.getElementById("rf-fz-picker");
-      if (box.getAttribute("data-open") === "1") { box.innerHTML = ""; box.removeAttribute("data-open"); return; }
-      var missingItems = state.freezerItems.filter(function (i) { return missingAmount(i) > 0; });
-      box.innerHTML =
-        '<div class="rf-card" style="padding:12px;margin-top:10px">' +
-        missingItems.map(function (i) {
-          var label = esc(i.name) + " — " + formatQty(missingAmount(i)) + " " + freezerUnitLabel(i.unit);
-          return '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:14px">' +
-            '<input type="checkbox" class="rf-fz-pick-cb" data-name="' + esc(i.name) + '" data-category="' + esc(i.category) + '" style="width:18px;height:18px;flex-shrink:0">' + label + '</label>';
-        }).join("") +
-        '<button type="button" id="rf-fz-pick-confirm" class="rf-btn" style="margin-top:10px;width:100%;justify-content:center">הוספת הנבחרים</button>' +
-        '</div>';
-      box.setAttribute("data-open", "1");
-      document.getElementById("rf-fz-pick-confirm").addEventListener("click", function () {
-        var chosen = Array.prototype.slice.call(box.querySelectorAll(".rf-fz-pick-cb:checked")).map(function (cb) {
-          return { name: cb.getAttribute("data-name"), category: cb.getAttribute("data-category") };
-        });
-        if (chosen.length) addShoppingItems(chosen);
-        box.innerHTML = ""; box.removeAttribute("data-open");
-        addShopBtn.textContent = "✓ נוסף לרשימת הקניות";
-        setTimeout(function () { if (addShopBtn) addShopBtn.textContent = "🛒 הוספת חוסרים לרשימת הקניות"; }, 1800);
-      });
     });
   }
 
