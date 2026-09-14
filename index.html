@@ -48,7 +48,7 @@
     cursor: pointer; background: var(--paper-2); color: var(--ink-soft); display: inline-flex; align-items: center; gap: 6px;
   }
   .rf-chip.on { border-color: currentColor; box-shadow: inset 0 0 0 1px currentColor; }
-  .rf-catrow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .rf-catrow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
   .rf-catchip {
     border: 1px solid transparent; border-radius: 16px; padding: 8px 6px; font-size: 13px; font-weight: 600;
     cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 4px;
@@ -124,9 +124,7 @@
 
 <script>
   var CATEGORY_META = {
-    "בשר טחון": { icon: "🍖", bg: "#FBE7C9", fg: "#A5691F" },
-    "עוף טחון": { icon: "🍗", bg: "#F7E1E1", fg: "#B85C5C" },
-    "בשר": { icon: "🥩", bg: "#E9DCEE", fg: "#7A5490" },
+    "בשר": { icon: "🥩", bg: "#FBE7C9", fg: "#A5691F" },
     "דג": { icon: "🐟", bg: "#DCEBF2", fg: "#3E7690" },
     "צמחוני": { icon: "🌿", bg: "#E3EFE0", fg: "#3E6350" },
     "קינוח": { icon: "🍰", bg: "#FBE1EC", fg: "#B85C8A" }
@@ -149,7 +147,8 @@
     { key: "medium", label: "בינוני", hint: "20–45 דק׳", color: "#C98A2C" },
     { key: "long", label: "ארוך", hint: "45 דק׳ ומעלה", color: "#9A4B3A" }
   ];
-  var MAIN_INGREDIENT_OPTIONS = ["בשר טחון", "עוף טחון", "בשר", "דג", "צמחוני", "קינוח"];
+  var MAIN_INGREDIENT_OPTIONS = ["בשר", "דג", "צמחוני", "קינוח"];
+  var OLD_MEAT_CATS = ["בשר טחון", "עוף טחון"]; // migrated automatically into "בשר"
   function timeMeta(key) {
     for (var i = 0; i < TIME_OPTIONS.length; i++) if (TIME_OPTIONS[i].key === key) return TIME_OPTIONS[i];
     return TIME_OPTIONS[0];
@@ -194,13 +193,22 @@
     { key: "units", label: "יחידות" }
   ];
 
+  // An ingredient entry is either a plain string, or an array of strings
+  // representing interchangeable alternatives ("בשר טחון או עוף טחון").
+  function ingredientNames(entry) { return Array.isArray(entry) ? entry : [entry]; }
+  function ingredientLabel(entry) { return Array.isArray(entry) ? entry.join(" או ") : entry; }
+
   function allIngredients() {
     var set = {};
-    state.recipes.forEach(function (r) { (r.ingredients || []).forEach(function (i) { set[i] = true; }); });
+    state.recipes.forEach(function (r) {
+      (r.ingredients || []).forEach(function (entry) {
+        ingredientNames(entry).forEach(function (n) { set[n] = true; });
+      });
+    });
     return Object.keys(set).sort(function (a, b) { return a.localeCompare(b, "he"); });
   }
 
-  var FREEZER_TRACKED_CATS = ["בשר טחון", "עוף טחון", "בשר", "דג"];
+  var FREEZER_TRACKED_CATS = ["בשר", "דג"];
 
   function filteredRecipes() {
     var tokens = state.query.split(",").map(function (t) { return t.trim(); }).filter(Boolean);
@@ -209,8 +217,9 @@
       if (state.freezerOnly && FREEZER_TRACKED_CATS.indexOf(r.mainIngredient) !== -1 && !hasFreezerStock(r.mainIngredient)) return false;
       if (tokens.length === 0) return true;
       return tokens.every(function (tok) {
-        return (r.ingredients || []).some(function (ing) { return ing.indexOf(tok) !== -1; }) ||
-          (r.name || "").indexOf(tok) !== -1;
+        return (r.ingredients || []).some(function (entry) {
+          return ingredientNames(entry).some(function (n) { return n.indexOf(tok) !== -1; });
+        }) || (r.name || "").indexOf(tok) !== -1;
       });
     });
   }
@@ -268,6 +277,12 @@
       function (snap) {
         var list = [];
         snap.forEach(function (doc) { list.push(Object.assign({ id: doc.id }, doc.data())); });
+        list.forEach(function (r) {
+          if (OLD_MEAT_CATS.indexOf(r.mainIngredient) !== -1) {
+            r.mainIngredient = "בשר"; // reflect immediately in the UI
+            db.collection("recipes").doc(r.id).update({ mainIngredient: "בשר" }).catch(function () {});
+          }
+        });
         state.recipes = applySessionOrder(list);
         state.loading = false;
         connStatus = "ok";
@@ -429,9 +444,9 @@
 
   // ---------- Render: pieces ----------
   function renderIngredientChips() {
-    return state.formIngredients.map(function (ing) {
-      return '<span class="rf-chip on" data-ing="' + esc(ing) + '">' + esc(ing) +
-        ' <span data-remove-ing="' + esc(ing) + '" style="cursor:pointer">✕</span></span>';
+    return state.formIngredients.map(function (ing, idx) {
+      return '<span class="rf-chip on" data-idx="' + idx + '">' + esc(ingredientLabel(ing)) +
+        ' <span data-remove-idx="' + idx + '" style="cursor:pointer">✕</span></span>';
     }).join("");
   }
 
@@ -441,7 +456,7 @@
       ? '<img src="' + r.image + '" class="rf-bigcard-img" alt="" />'
       : '<div class="rf-bigcard-placeholder">🍽</div>';
     var cm = CATEGORY_META[r.mainIngredient];
-    var teaser = r.instructions ? r.instructions.slice(0, 90) + (r.instructions.length > 90 ? "…" : "") : r.ingredients.slice(0, 5).join(" · ");
+    var teaser = r.instructions ? r.instructions.slice(0, 90) + (r.instructions.length > 90 ? "…" : "") : r.ingredients.slice(0, 5).map(ingredientLabel).join(" · ");
     return (
       '<div class="rf-card rf-bigcard" data-open="' + r.id + '">' +
       '<div class="rf-bigcard-imgwrap">' + img +
@@ -547,11 +562,14 @@
     return (Math.round(n * 100) / 100).toString();
   }
 
-  // Used by the "show what's in the freezer" recipe filter: a meat/fish
-  // category counts as in-stock only if a freezer item with that exact
-  // name has quantity greater than zero.
+  // Used by the "show what's in the freezer" recipe filter: "בשר" is in
+  // stock if any freezer item in the meat section has quantity > 0, and
+  // likewise "דג" against the fish section.
+  var CATEGORY_TO_FREEZER_SECTION = { "בשר": "meat", "דג": "fish" };
   function hasFreezerStock(categoryName) {
-    return state.freezerItems.some(function (i) { return i.name === categoryName && (i.currentQty || 0) > 0; });
+    var section = CATEGORY_TO_FREEZER_SECTION[categoryName];
+    if (!section) return false;
+    return state.freezerItems.some(function (i) { return i.category === section && (i.currentQty || 0) > 0; });
   }
 
   function renderList() {
@@ -629,7 +647,7 @@
       (r.mainIngredient && CATEGORY_META[r.mainIngredient] ? '<span class="rf-badge" style="background:' + CATEGORY_META[r.mainIngredient].bg + ';color:' + CATEGORY_META[r.mainIngredient].fg + ';margin-top:10px">' + CATEGORY_META[r.mainIngredient].icon + ' ' + esc(r.mainIngredient) + '</span>' : '') +
       '<h4 style="font-size:13px;color:var(--ink-soft);margin:16px 0 6px;font-weight:500">מרכיבים</h4>' +
       '<ul style="margin:0;padding-right:18px;font-size:14px;line-height:1.9">' +
-      (r.ingredients || []).map(function (i) { return '<li>' + esc(i) + '</li>'; }).join("") +
+      (r.ingredients || []).map(function (i) { return '<li>' + esc(ingredientLabel(i)) + '</li>'; }).join("") +
       '</ul>' +
       (r.instructions ? '<h4 style="font-size:13px;color:var(--ink-soft);margin:16px 0 6px;font-weight:500">אופן ההכנה</h4><p style="margin:0;font-size:14px;line-height:1.8;white-space:pre-wrap">' + esc(r.instructions) + '</p>' : '') +
       (r.link ? '<a href="' + esc(r.link) + '" target="_blank" rel="noreferrer" class="rf-btn rf-btn-outline" style="margin-top:16px;text-decoration:none;display:inline-flex">🔗 פתיחת המתכון המקורי</a>' : '') +
@@ -667,10 +685,14 @@
 
       '<span class="rf-label">מרכיבים</span>' +
       '<div id="rf-ing-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">' + renderIngredientChips() + '</div>' +
-      '<div style="position:relative;margin-bottom:14px">' +
+      '<div style="position:relative;margin-bottom:6px">' +
       '<input id="rf-ing-input" class="rf-input" placeholder="הקלידו מרכיבים מופרדים בפסיק" />' +
       '<div id="rf-ing-suggest"></div>' +
       '</div>' +
+      '<label style="display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink-soft);margin-bottom:14px;cursor:pointer">' +
+      '<input type="checkbox" id="rf-ing-or" style="width:16px;height:16px">' +
+      '🔀 המרכיב הבא הוא חלופה ("או") למרכיב האחרון, לא מרכיב נוסף' +
+      '</label>' +
 
       '<span class="rf-label">זמן הכנה</span>' +
       '<div style="display:flex;gap:8px;margin-bottom:14px">' + timeChips + '</div>' +
@@ -1017,9 +1039,11 @@
       }
       var r = state.recipes.find(function (x) { return x.id === state.activeId; });
       if (!r) return;
+      var allNames = [];
+      r.ingredients.forEach(function (entry) { ingredientNames(entry).forEach(function (n) { allNames.push(n); }); });
       box.innerHTML =
         '<div class="rf-card" style="padding:12px;margin-top:10px">' +
-        r.ingredients.map(function (ing, idx) {
+        allNames.map(function (ing) {
           return '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:14px">' +
             '<input type="checkbox" class="rf-shop-pick-cb" value="' + esc(ing) + '" style="width:18px;height:18px;flex-shrink:0">' +
             esc(ing) + '</label>';
@@ -1047,20 +1071,30 @@
     });
 
     var ingInput = document.getElementById("rf-ing-input");
+    function ingredientExists(v) {
+      return state.formIngredients.some(function (entry) { return ingredientNames(entry).indexOf(v) !== -1; });
+    }
     function addIngredient(v) {
       v = v.trim();
-      if (!v || state.formIngredients.indexOf(v) !== -1) { ingInput.value = ""; return; }
-      state.formIngredients.push(v);
+      if (!v || ingredientExists(v)) { ingInput.value = ""; return; }
+      var orToggle = document.getElementById("rf-ing-or");
+      if (orToggle && orToggle.checked && state.formIngredients.length > 0) {
+        var lastIdx = state.formIngredients.length - 1;
+        var last = state.formIngredients[lastIdx];
+        state.formIngredients[lastIdx] = Array.isArray(last) ? last.concat([v]) : [last, v];
+      } else {
+        state.formIngredients.push(v);
+      }
       ingInput.value = "";
       document.getElementById("rf-ing-chips").innerHTML = renderIngredientChips();
       wireIngredientChips();
       document.getElementById("rf-ing-suggest").innerHTML = "";
     }
     function wireIngredientChips() {
-      root.querySelectorAll("[data-remove-ing]").forEach(function (x) {
+      root.querySelectorAll("[data-remove-idx]").forEach(function (x) {
         x.addEventListener("click", function () {
-          var v = x.getAttribute("data-remove-ing");
-          state.formIngredients = state.formIngredients.filter(function (i) { return i !== v; });
+          var idx = parseInt(x.getAttribute("data-remove-idx"), 10);
+          state.formIngredients.splice(idx, 1);
           document.getElementById("rf-ing-chips").innerHTML = renderIngredientChips();
           wireIngredientChips();
         });
@@ -1079,19 +1113,14 @@
         if (ingInput.value.indexOf(",") !== -1) {
           var parts = ingInput.value.split(",");
           var remainder = parts.pop();
-          parts.forEach(function (p) {
-            var v = p.trim();
-            if (v && state.formIngredients.indexOf(v) === -1) state.formIngredients.push(v);
-          });
+          parts.forEach(function (p) { addIngredient(p); });
           ingInput.value = remainder.replace(/^\s+/, "");
-          document.getElementById("rf-ing-chips").innerHTML = renderIngredientChips();
-          wireIngredientChips();
         }
 
         var box = document.getElementById("rf-ing-suggest");
         var val = ingInput.value.trim();
         if (!val) { box.innerHTML = ""; return; }
-        var opts = allIngredients().filter(function (i) { return i.indexOf(val) !== -1 && state.formIngredients.indexOf(i) === -1; }).slice(0, 6);
+        var opts = allIngredients().filter(function (i) { return i.indexOf(val) !== -1 && !ingredientExists(i); }).slice(0, 6);
         if (opts.length === 0) { box.innerHTML = ""; return; }
         box.innerHTML = '<div class="rf-suggest">' + opts.map(function (o) { return '<button type="button" data-add="' + esc(o) + '">' + esc(o) + '</button>'; }).join("") + '</div>';
         box.querySelectorAll("[data-add]").forEach(function (b) {
