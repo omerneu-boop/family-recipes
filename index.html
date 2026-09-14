@@ -183,7 +183,8 @@
     freezerLoading: true,
     freezerFormOpen: false,
     freezerView: "stock", // stock | missing
-    freezerEmptyOpen: false
+    freezerEmptyOpen: false,
+    freezerEditId: null
   };
 
   var FREEZER_CATS = [
@@ -929,7 +930,7 @@
             (missing > 0
               ? '<span class="rf-badge" style="background:var(--terracotta)22;color:var(--terracotta)">חסר ' + formatQty(missing) + ' ' + unitLabel + '</span>'
               : '<span class="rf-badge" style="background:var(--forest-soft);color:var(--forest)">מלא</span>') +
-            '<span data-freezer-edit-usual="' + i.id + '" data-freezer-name="' + esc(i.name) + '" data-freezer-usual="' + (i.usualQty || 0) + '" style="cursor:pointer;color:var(--ink-soft);padding:2px" title="עדכון כמות רגילה">✏️</span>' +
+            '<span data-freezer-edit="' + i.id + '" style="cursor:pointer;color:var(--ink-soft);padding:2px" title="עריכת הפריט">✏️</span>' +
             '<span data-freezer-del="' + i.id + '" data-freezer-name="' + esc(i.name) + '" style="cursor:pointer;color:var(--ink-soft);padding:2px" title="הסרת הפריט מהמעקב">🗑</span>' +
             '</div>'
           );
@@ -939,27 +940,36 @@
       sectionsHtml = celebrate + itemsHtml;
     }
 
+    var editItem = state.freezerEditId ? state.freezerItems.find(function (x) { return x.id === state.freezerEditId; }) : null;
+
     var addForm = state.freezerFormOpen ? (
       '<div class="rf-card" style="padding:14px;margin-top:10px">' +
+      '<h4 class="rf-title" style="font-size:15px;margin:0 0 10px">' + (editItem ? "עריכת פריט" : "פריט חדש") + '</h4>' +
       '<span class="rf-label">שם הפריט</span>' +
       '<div style="position:relative;margin-bottom:10px">' +
-      '<input id="rf-fz-name" class="rf-input" placeholder="למשל: בשר טחון" />' +
+      '<input id="rf-fz-name" class="rf-input" placeholder="למשל: בשר טחון" value="' + (editItem ? esc(editItem.name) : "") + '" />' +
       '<div id="rf-fz-name-suggest"></div>' +
       '</div>' +
       '<span class="rf-label">סוג</span>' +
       '<div style="display:flex;gap:8px;margin-bottom:10px">' +
-      FREEZER_CATS.map(function (c) { return '<label class="rf-chip"><input type="radio" name="rf-fz-cat" value="' + c.key + '" style="display:none">' + c.icon + ' ' + c.label + '</label>'; }).join("") +
+      FREEZER_CATS.map(function (c) {
+        var checked = editItem && editItem.category === c.key;
+        return '<label class="rf-chip ' + (checked ? "on" : "") + '"><input type="radio" name="rf-fz-cat" value="' + c.key + '" ' + (checked ? "checked" : "") + ' style="display:none">' + c.icon + ' ' + c.label + '</label>';
+      }).join("") +
       '</div>' +
       '<span class="rf-label">יחידת מידה</span>' +
       '<div style="display:flex;gap:8px;margin-bottom:10px">' +
-      FREEZER_UNITS.map(function (u) { return '<label class="rf-chip"><input type="radio" name="rf-fz-unit" value="' + u.key + '" style="display:none">' + u.label + '</label>'; }).join("") +
+      FREEZER_UNITS.map(function (u) {
+        var checked = editItem && editItem.unit === u.key;
+        return '<label class="rf-chip ' + (checked ? "on" : "") + '"><input type="radio" name="rf-fz-unit" value="' + u.key + '" ' + (checked ? "checked" : "") + ' style="display:none">' + u.label + '</label>';
+      }).join("") +
       '</div>' +
       '<span class="rf-label">כמה יש כרגע</span>' +
-      '<input id="rf-fz-current" type="number" step="0.1" min="0" class="rf-input" style="margin-bottom:10px" placeholder="0" />' +
+      '<input id="rf-fz-current" type="number" step="0.1" min="0" class="rf-input" style="margin-bottom:10px" placeholder="0" value="' + (editItem ? (editItem.currentQty || 0) : "") + '" />' +
       '<span class="rf-label">כמה קונים בדרך כלל</span>' +
-      '<input id="rf-fz-usual" type="number" step="0.1" min="0" class="rf-input" style="margin-bottom:14px" placeholder="0" />' +
+      '<input id="rf-fz-usual" type="number" step="0.1" min="0" class="rf-input" style="margin-bottom:14px" placeholder="0" value="' + (editItem ? (editItem.usualQty || 0) : "") + '" />' +
       '<div style="display:flex;gap:8px">' +
-      '<button type="button" id="rf-fz-save" class="rf-btn">שמירה</button>' +
+      '<button type="button" id="rf-fz-save" class="rf-btn">' + (editItem ? "עדכון" : "שמירה") + '</button>' +
       '<button type="button" id="rf-fz-cancel" class="rf-btn-outline rf-btn">ביטול</button>' +
       '</div></div>'
     ) : '';
@@ -979,7 +989,15 @@
 
   function wireFreezer() {
     var toggle = document.getElementById("rf-fz-add-toggle");
-    if (toggle) toggle.addEventListener("click", function () { state.freezerFormOpen = !state.freezerFormOpen; render(); });
+    if (toggle) toggle.addEventListener("click", function () {
+      if (state.freezerFormOpen) {
+        state.freezerFormOpen = false;
+      } else {
+        state.freezerEditId = null; // this button always opens a blank "new item" form
+        state.freezerFormOpen = true;
+      }
+      render();
+    });
 
     root.querySelectorAll("[data-fz-view]").forEach(function (btn) {
       btn.addEventListener("click", function () {
@@ -992,15 +1010,11 @@
       state.freezerEmptyOpen = !state.freezerEmptyOpen;
       render();
     });
-    root.querySelectorAll("[data-freezer-edit-usual]").forEach(function (el) {
+    root.querySelectorAll("[data-freezer-edit]").forEach(function (el) {
       el.addEventListener("click", function () {
-        var id = el.getAttribute("data-freezer-edit-usual");
-        var name = el.getAttribute("data-freezer-name");
-        var current = el.getAttribute("data-freezer-usual");
-        var val = prompt('כמה "' + name + '" קונים בדרך כלל?', current);
-        if (val === null) return;
-        var num = parseFloat(val);
-        if (!isNaN(num) && num >= 0) updateFreezerQty(id, "usualQty", num);
+        state.freezerEditId = el.getAttribute("data-freezer-edit");
+        state.freezerFormOpen = true;
+        render();
       });
     });
     root.querySelectorAll("[data-freezer-del]").forEach(function (el) {
@@ -1044,12 +1058,22 @@
       var current = parseFloat(document.getElementById("rf-fz-current").value) || 0;
       var usual = parseFloat(document.getElementById("rf-fz-usual").value) || 0;
       if (!name || !cat || !unit) { alert("צריך שם, סוג ויחידת מידה"); return; }
-      addFreezerItem({ name: name, category: cat.value, unit: unit.value, currentQty: current, usualQty: usual });
+      var data = { name: name, category: cat.value, unit: unit.value, currentQty: current, usualQty: usual };
+      if (state.freezerEditId) {
+        db.collection("freezer").doc(state.freezerEditId).set(data).catch(function () {});
+      } else {
+        addFreezerItem(data);
+      }
       state.freezerFormOpen = false;
+      state.freezerEditId = null;
       render();
     });
     var cancelBtn = document.getElementById("rf-fz-cancel");
-    if (cancelBtn) cancelBtn.addEventListener("click", function () { state.freezerFormOpen = false; render(); });
+    if (cancelBtn) cancelBtn.addEventListener("click", function () {
+      state.freezerFormOpen = false;
+      state.freezerEditId = null;
+      render();
+    });
 
     root.querySelectorAll("[data-freezer-minus]").forEach(function (el) {
       el.addEventListener("click", function () { adjustFreezerQty(el.getAttribute("data-freezer-minus"), -1); });
