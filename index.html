@@ -103,11 +103,11 @@
   .rf-label { font-size: 13px; color: var(--ink-soft); display: block; margin-bottom: 6px; }
   .rf-status { font-size: 12px; margin-top: 10px; }
   .rf-signoff { text-align: center; color: var(--ink-soft); font-size: 13px; margin-top: 24px; opacity: .7; }
-  .rf-tabs { display: flex; gap: 8px; margin: 16px 0; background: var(--paper-2); border-radius: 24px; padding: 4px; }
+  .rf-tabs { display: flex; gap: 4px; margin: 16px 0; background: var(--paper-2); border-radius: 24px; padding: 4px; }
   .rf-tab {
-    flex: 1; text-align: center; padding: 9px 6px; border-radius: 20px; font-size: 14px; font-weight: 600;
+    flex: 1; text-align: center; padding: 9px 3px; border-radius: 20px; font-size: 12.5px; font-weight: 600;
     cursor: pointer; color: var(--ink-soft); border: none; background: transparent; display: inline-flex;
-    align-items: center; justify-content: center; gap: 5px;
+    align-items: center; justify-content: center; gap: 3px; white-space: nowrap; overflow: hidden;
   }
   .rf-tab.on { background: var(--forest); color: #fff; }
   .rf-shop-row {
@@ -166,20 +166,33 @@
   var connErrorMsg = "";
 
   var state = {
-    tab: "recipes", // recipes | shopping
+    tab: "recipes", // recipes | shopping | freezer
     recipes: [],
     loading: true,
     view: "list", // list | detail | form
     activeId: null,
     query: "",
     activeCategories: [],
+    freezerOnly: false,
     formIngredients: [],
     formImage: "",
     formImgBusy: false,
     formError: "",
     shoppingItems: [],
-    shoppingLoading: true
+    shoppingLoading: true,
+    freezerItems: [],
+    freezerLoading: true,
+    freezerFormOpen: false
   };
+
+  var FREEZER_CATS = [
+    { key: "meat", label: "בשר", icon: "🥩" },
+    { key: "fish", label: "דג", icon: "🐟" }
+  ];
+  var FREEZER_UNITS = [
+    { key: "kg", label: 'ק"ג' },
+    { key: "units", label: "יחידות" }
+  ];
 
   function allIngredients() {
     var set = {};
@@ -187,10 +200,13 @@
     return Object.keys(set).sort(function (a, b) { return a.localeCompare(b, "he"); });
   }
 
+  var FREEZER_TRACKED_CATS = ["בשר טחון", "עוף טחון", "בשר", "דג"];
+
   function filteredRecipes() {
     var tokens = state.query.split(",").map(function (t) { return t.trim(); }).filter(Boolean);
     return state.recipes.filter(function (r) {
       if (state.activeCategories.length > 0 && state.activeCategories.indexOf(r.mainIngredient) === -1) return false;
+      if (state.freezerOnly && FREEZER_TRACKED_CATS.indexOf(r.mainIngredient) !== -1 && !hasFreezerStock(r.mainIngredient)) return false;
       if (tokens.length === 0) return true;
       return tokens.every(function (tok) {
         return (r.ingredients || []).some(function (ing) { return ing.indexOf(tok) !== -1; }) ||
@@ -278,6 +294,20 @@
       },
       function (err) {
         state.shoppingLoading = false;
+        render();
+      }
+    );
+    db.collection("freezer").onSnapshot(
+      function (snap) {
+        var items = [];
+        snap.forEach(function (doc) { items.push(Object.assign({ id: doc.id }, doc.data())); });
+        items.sort(function (a, b) { return (a.name || "").localeCompare(b.name || "", "he"); });
+        state.freezerItems = items;
+        state.freezerLoading = false;
+        render();
+      },
+      function (err) {
+        state.freezerLoading = false;
         render();
       }
     );
@@ -481,6 +511,49 @@
     batch.commit().catch(function () {});
   }
 
+  // ---------- Freezer inventory ----------
+  function addFreezerItem(data) {
+    db.collection("freezer").add({
+      name: data.name,
+      category: data.category,
+      unit: data.unit,
+      currentQty: data.currentQty,
+      usualQty: data.usualQty
+    }).catch(function () {});
+  }
+
+  function updateFreezerQty(id, field, value) {
+    var patch = {};
+    patch[field] = value;
+    db.collection("freezer").doc(id).update(patch).catch(function () {});
+  }
+
+  function deleteFreezerItem(id) {
+    db.collection("freezer").doc(id).delete().catch(function () {});
+  }
+
+  function freezerUnitLabel(unitKey) {
+    var u = FREEZER_UNITS.find(function (x) { return x.key === unitKey; });
+    return u ? u.label : unitKey;
+  }
+
+  function missingAmount(item) {
+    var m = (item.usualQty || 0) - (item.currentQty || 0);
+    return m > 0 ? m : 0;
+  }
+
+  function formatQty(n) {
+    // trims trailing .0 but keeps e.g. 1.5
+    return (Math.round(n * 100) / 100).toString();
+  }
+
+  // Used by the "show what's in the freezer" recipe filter: a meat/fish
+  // category counts as in-stock only if a freezer item with that exact
+  // name has quantity greater than zero.
+  function hasFreezerStock(categoryName) {
+    return state.freezerItems.some(function (i) { return i.name === categoryName && (i.currentQty || 0) > 0; });
+  }
+
   function renderList() {
     var catsHtml = MAIN_INGREDIENT_OPTIONS.map(function (c) {
       var cm = CATEGORY_META[c];
@@ -494,7 +567,10 @@
       '<input id="rf-search" class="rf-input" style="padding-right:38px" placeholder="חיפוש לפי רכיב או שם מנה" value="' + esc(state.query) + '" />' +
       '<div id="rf-search-suggest"></div>' +
       '</div>' +
-      '<div class="rf-catrow" style="margin:14px 0 18px">' + catsHtml + '</div>' +
+      '<div class="rf-catrow" style="margin:14px 0 10px">' + catsHtml + '</div>' +
+      '<label class="rf-chip ' + (state.freezerOnly ? "on" : "") + '" style="background:var(--forest-soft);color:var(--forest);margin-bottom:16px">' +
+      '<input type="checkbox" id="rf-freezer-only" ' + (state.freezerOnly ? "checked" : "") + ' style="display:none">' +
+      '🧊 רק מה שיש במקפיא</label>' +
       '<button type="button" id="rf-random" class="rf-details-link" style="width:100%;justify-content:center;margin-bottom:16px;padding:12px">🎲 הפתיעו אותי — מנה רנדומלית</button>' +
       '<div id="rf-results">' + buildResultsHtml() + '</div>' +
       '<button type="button" id="rf-fab" class="rf-btn rf-fab" aria-label="הוספת מתכון">+</button>' +
@@ -637,9 +713,10 @@
     return (
       '<div class="rf-tabs">' +
       '<button type="button" class="rf-tab ' + (state.tab === "recipes" ? "on" : "") + '" data-tab="recipes">🍲 מתכונים</button>' +
-      '<button type="button" class="rf-tab ' + (state.tab === "shopping" ? "on" : "") + '" data-tab="shopping">🛒 רשימת קניות' +
+      '<button type="button" class="rf-tab ' + (state.tab === "shopping" ? "on" : "") + '" data-tab="shopping">🛒 קניות' +
       (uncheckedCount > 0 ? ' <span class="rf-badge" style="background:rgba(255,255,255,.25);color:inherit">' + uncheckedCount + '</span>' : '') +
       '</button>' +
+      '<button type="button" class="rf-tab ' + (state.tab === "freezer" ? "on" : "") + '" data-tab="freezer">🧊 מקפיא</button>' +
       '</div>'
     );
   }
@@ -704,6 +781,133 @@
     });
   }
 
+  function renderFreezer() {
+    var sectionsHtml = FREEZER_CATS.map(function (cat) {
+      var items = state.freezerItems.filter(function (i) { return i.category === cat.key; });
+      var rows = items.map(function (i) {
+        var missing = missingAmount(i);
+        var unitLabel = freezerUnitLabel(i.unit);
+        return (
+          '<div class="rf-shop-row" style="flex-wrap:wrap">' +
+          '<span style="flex:1;font-size:14px;font-weight:600;min-width:90px">' + esc(i.name) + '</span>' +
+          '<span style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-soft)">' +
+          'יש: <input type="number" step="0.1" min="0" data-freezer-id="' + i.id + '" data-freezer-field="currentQty" value="' + (i.currentQty || 0) + '" style="width:52px;border:1px solid var(--line);border-radius:6px;padding:3px 4px;text-align:center;font-size:13px">' +
+          '</span>' +
+          '<span style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-soft)">' +
+          'קונים בד"כ: <input type="number" step="0.1" min="0" data-freezer-id="' + i.id + '" data-freezer-field="usualQty" value="' + (i.usualQty || 0) + '" style="width:52px;border:1px solid var(--line);border-radius:6px;padding:3px 4px;text-align:center;font-size:13px">' +
+          '</span>' +
+          '<span style="font-size:11px;color:var(--ink-soft)">' + unitLabel + '</span>' +
+          (missing > 0 ? '<span class="rf-badge" style="background:var(--terracotta)22;color:var(--terracotta)">חסר ' + formatQty(missing) + '</span>' : '<span class="rf-badge" style="background:var(--forest-soft);color:var(--forest)">מלא</span>') +
+          '<span data-freezer-del="' + i.id + '" style="cursor:pointer;color:var(--ink-soft);padding:2px">✕</span>' +
+          '</div>'
+        );
+      }).join("");
+
+      return (
+        '<h4 class="rf-title" style="font-size:15px;margin:18px 0 6px">' + cat.icon + ' ' + cat.label + '</h4>' +
+        (rows
+          ? '<div class="rf-card" style="padding:2px 14px">' + rows + '</div>'
+          : '<p style="font-size:13px;color:var(--ink-soft);margin:0">עדיין לא הוספתם פריטים כאן</p>')
+      );
+    }).join("");
+
+    var addForm = state.freezerFormOpen ? (
+      '<div class="rf-card" style="padding:14px;margin-top:10px">' +
+      '<span class="rf-label">שם הפריט</span>' +
+      '<input id="rf-fz-name" class="rf-input" style="margin-bottom:10px" placeholder="למשל: בשר טחון" />' +
+      '<span class="rf-label">סוג</span>' +
+      '<div style="display:flex;gap:8px;margin-bottom:10px">' +
+      FREEZER_CATS.map(function (c) { return '<label class="rf-chip"><input type="radio" name="rf-fz-cat" value="' + c.key + '" style="display:none">' + c.icon + ' ' + c.label + '</label>'; }).join("") +
+      '</div>' +
+      '<span class="rf-label">יחידת מידה</span>' +
+      '<div style="display:flex;gap:8px;margin-bottom:10px">' +
+      FREEZER_UNITS.map(function (u) { return '<label class="rf-chip"><input type="radio" name="rf-fz-unit" value="' + u.key + '" style="display:none">' + u.label + '</label>'; }).join("") +
+      '</div>' +
+      '<span class="rf-label">כמה יש כרגע</span>' +
+      '<input id="rf-fz-current" type="number" step="0.1" min="0" class="rf-input" style="margin-bottom:10px" placeholder="0" />' +
+      '<span class="rf-label">כמה קונים בדרך כלל</span>' +
+      '<input id="rf-fz-usual" type="number" step="0.1" min="0" class="rf-input" style="margin-bottom:14px" placeholder="0" />' +
+      '<div style="display:flex;gap:8px">' +
+      '<button type="button" id="rf-fz-save" class="rf-btn">שמירה</button>' +
+      '<button type="button" id="rf-fz-cancel" class="rf-btn-outline rf-btn">ביטול</button>' +
+      '</div></div>'
+    ) : '';
+
+    var hasMissing = state.freezerItems.some(function (i) { return missingAmount(i) > 0; });
+
+    return (
+      '<button type="button" id="rf-fz-add-toggle" class="rf-details-link" style="width:100%;justify-content:center;padding:11px">' +
+      (state.freezerFormOpen ? "✕ סגירה" : "+ הוספת פריט למקפיא") + '</button>' +
+      addForm +
+      sectionsHtml +
+      (hasMissing ? '<button type="button" id="rf-fz-add-shop" class="rf-btn" style="width:100%;justify-content:center;margin-top:18px">🛒 הוספת חוסרים לרשימת הקניות</button>' : '') +
+      '<div id="rf-fz-picker"></div>'
+    );
+  }
+
+  function wireFreezer() {
+    var toggle = document.getElementById("rf-fz-add-toggle");
+    if (toggle) toggle.addEventListener("click", function () { state.freezerFormOpen = !state.freezerFormOpen; render(); });
+
+    root.querySelectorAll('input[name="rf-fz-cat"], input[name="rf-fz-unit"]').forEach(function (inp) {
+      inp.addEventListener("change", function () {
+        root.querySelectorAll('input[name="' + inp.name + '"]').forEach(function (o) { o.closest("label").classList.remove("on"); });
+        inp.closest("label").classList.add("on");
+      });
+    });
+
+    var saveBtn = document.getElementById("rf-fz-save");
+    if (saveBtn) saveBtn.addEventListener("click", function () {
+      var name = document.getElementById("rf-fz-name").value.trim();
+      var cat = root.querySelector('input[name="rf-fz-cat"]:checked');
+      var unit = root.querySelector('input[name="rf-fz-unit"]:checked');
+      var current = parseFloat(document.getElementById("rf-fz-current").value) || 0;
+      var usual = parseFloat(document.getElementById("rf-fz-usual").value) || 0;
+      if (!name || !cat || !unit) { alert("צריך שם, סוג ויחידת מידה"); return; }
+      addFreezerItem({ name: name, category: cat.value, unit: unit.value, currentQty: current, usualQty: usual });
+      state.freezerFormOpen = false;
+      render();
+    });
+    var cancelBtn = document.getElementById("rf-fz-cancel");
+    if (cancelBtn) cancelBtn.addEventListener("click", function () { state.freezerFormOpen = false; render(); });
+
+    root.querySelectorAll("[data-freezer-id]").forEach(function (inp) {
+      inp.addEventListener("change", function () {
+        var val = parseFloat(inp.value) || 0;
+        updateFreezerQty(inp.getAttribute("data-freezer-id"), inp.getAttribute("data-freezer-field"), val);
+      });
+    });
+    root.querySelectorAll("[data-freezer-del]").forEach(function (el) {
+      el.addEventListener("click", function () {
+        if (confirm("להסיר את הפריט מהמקפיא?")) deleteFreezerItem(el.getAttribute("data-freezer-del"));
+      });
+    });
+
+    var addShopBtn = document.getElementById("rf-fz-add-shop");
+    if (addShopBtn) addShopBtn.addEventListener("click", function () {
+      var box = document.getElementById("rf-fz-picker");
+      if (box.getAttribute("data-open") === "1") { box.innerHTML = ""; box.removeAttribute("data-open"); return; }
+      var missingItems = state.freezerItems.filter(function (i) { return missingAmount(i) > 0; });
+      box.innerHTML =
+        '<div class="rf-card" style="padding:12px;margin-top:10px">' +
+        missingItems.map(function (i) {
+          var label = esc(i.name) + " — " + formatQty(missingAmount(i)) + " " + freezerUnitLabel(i.unit);
+          return '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:14px">' +
+            '<input type="checkbox" class="rf-fz-pick-cb" data-label="' + esc(label) + '" style="width:18px;height:18px;flex-shrink:0">' + label + '</label>';
+        }).join("") +
+        '<button type="button" id="rf-fz-pick-confirm" class="rf-btn" style="margin-top:10px;width:100%;justify-content:center">הוספת הנבחרים</button>' +
+        '</div>';
+      box.setAttribute("data-open", "1");
+      document.getElementById("rf-fz-pick-confirm").addEventListener("click", function () {
+        var chosen = Array.prototype.slice.call(box.querySelectorAll(".rf-fz-pick-cb:checked")).map(function (cb) { return cb.getAttribute("data-label"); });
+        if (chosen.length) addShoppingItems(chosen);
+        box.innerHTML = ""; box.removeAttribute("data-open");
+        addShopBtn.textContent = "✓ נוסף לרשימת הקניות";
+        setTimeout(function () { if (addShopBtn) addShopBtn.textContent = "🛒 הוספת חוסרים לרשימת הקניות"; }, 1800);
+      });
+    });
+  }
+
   function render() {
     if (connStatus === "error") {
       root.innerHTML =
@@ -714,6 +918,8 @@
     var body;
     if (state.tab === "shopping") {
       body = state.shoppingLoading ? '<p style="color:var(--ink-soft)">טוען...</p>' : renderShopping();
+    } else if (state.tab === "freezer") {
+      body = state.freezerLoading ? '<p style="color:var(--ink-soft)">טוען...</p>' : renderFreezer();
     } else if (state.loading) {
       body = '<p style="color:var(--ink-soft)">טוען...</p>';
     } else if (state.view === "form") {
@@ -740,6 +946,7 @@
     });
 
     if (state.tab === "shopping") { wireShopping(); return; }
+    if (state.tab === "freezer") { wireFreezer(); return; }
     if (state.view === "form") { renderImageWrap(); wireForm(); }
     if (state.view === "list") wireList();
     if (state.view === "detail") wireDetail();
@@ -758,6 +965,11 @@
     }
     root.querySelectorAll("[data-cat]").forEach(function (btn) {
       btn.addEventListener("click", function () { toggleCategory(btn.getAttribute("data-cat")); });
+    });
+    var freezerOnly = document.getElementById("rf-freezer-only");
+    if (freezerOnly) freezerOnly.addEventListener("change", function () {
+      state.freezerOnly = freezerOnly.checked;
+      render();
     });
     wireResultCards();
     var fab = document.getElementById("rf-fab");
