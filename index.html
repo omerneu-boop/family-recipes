@@ -496,16 +496,32 @@
   }
 
   // ---------- Shopping list ----------
-  function addShoppingItems(names) {
+  var SHOP_SECTIONS = [
+    { key: "super", label: "סופר", icon: "🛒" },
+    { key: "meat", label: "קצבייה", icon: "🥩" },
+    { key: "fish", label: "דגים", icon: "🐟" }
+  ];
+
+  // If the item's name matches a tracked freezer item exactly, file it
+  // under that freezer item's section (קצבייה/דגים); otherwise it's a
+  // regular supermarket item.
+  function guessShoppingCategory(name) {
+    var match = state.freezerItems.find(function (i) { return i.name === name; });
+    return match ? match.category : "super";
+  }
+
+  function addShoppingItems(items) {
     var existing = state.shoppingItems.map(function (i) { return (i.name || "").trim(); });
     var batch = db.batch();
     var any = false;
-    names.forEach(function (raw) {
-      var name = raw.trim();
+    items.forEach(function (raw) {
+      var name, category;
+      if (raw && typeof raw === "object") { name = (raw.name || "").trim(); category = raw.category; }
+      else { name = String(raw).trim(); category = null; }
       if (!name || existing.indexOf(name) !== -1) return;
       existing.push(name);
       var ref = db.collection("shopping").doc();
-      batch.set(ref, { name: name, checked: false });
+      batch.set(ref, { name: name, checked: false, category: category || guessShoppingCategory(name) });
       any = true;
     });
     if (any) batch.commit().catch(function () {});
@@ -750,14 +766,23 @@
     );
   }
 
+  function shoppingRowHtml(i) {
+    return (
+      '<div class="rf-shop-row">' +
+      '<span class="rf-shop-check ' + (i.checked ? "on" : "") + '" data-shop-toggle="' + i.id + '">' + (i.checked ? "✓" : "") + '</span>' +
+      '<span class="rf-shop-name ' + (i.checked ? "done" : "") + '">' + esc(i.name) + '</span>' +
+      '<span data-shop-del="' + i.id + '" style="cursor:pointer;color:var(--ink-soft);padding:4px">✕</span>' +
+      '</div>'
+    );
+  }
+
   function renderShopping() {
-    var rows = state.shoppingItems.map(function (i) {
+    var sectionsHtml = SHOP_SECTIONS.map(function (sec) {
+      var items = state.shoppingItems.filter(function (i) { return (i.category || "super") === sec.key; });
+      if (items.length === 0) return "";
       return (
-        '<div class="rf-shop-row">' +
-        '<span class="rf-shop-check ' + (i.checked ? "on" : "") + '" data-shop-toggle="' + i.id + '">' + (i.checked ? "✓" : "") + '</span>' +
-        '<span class="rf-shop-name ' + (i.checked ? "done" : "") + '">' + esc(i.name) + '</span>' +
-        '<span data-shop-del="' + i.id + '" style="cursor:pointer;color:var(--ink-soft);padding:4px">✕</span>' +
-        '</div>'
+        '<h4 class="rf-title" style="font-size:14px;margin:16px 0 6px">' + sec.icon + ' ' + sec.label + '</h4>' +
+        '<div class="rf-card" style="padding:2px 14px">' + items.map(shoppingRowHtml).join("") + '</div>'
       );
     }).join("");
 
@@ -768,8 +793,8 @@
       '<div style="position:relative;margin-bottom:14px">' +
       '<input id="rf-shop-input" class="rf-input" placeholder="הוסיפו פריט לרשימה" />' +
       '</div>' +
-      (rows
-        ? '<div class="rf-card" style="padding:6px 14px">' + rows + '</div>'
+      (hasAny
+        ? sectionsHtml
         : '<div class="rf-card" style="padding:20px;text-align:center;color:var(--ink-soft)">הרשימה ריקה כרגע 🛒</div>') +
       '<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">' +
       (hasChecked ? '<button type="button" id="rf-shop-clear" class="rf-details-link">נקה מסומנים</button>' : '') +
@@ -843,7 +868,10 @@
     var addForm = state.freezerFormOpen ? (
       '<div class="rf-card" style="padding:14px;margin-top:10px">' +
       '<span class="rf-label">שם הפריט</span>' +
-      '<input id="rf-fz-name" class="rf-input" style="margin-bottom:10px" placeholder="למשל: בשר טחון" />' +
+      '<div style="position:relative;margin-bottom:10px">' +
+      '<input id="rf-fz-name" class="rf-input" placeholder="למשל: בשר טחון" />' +
+      '<div id="rf-fz-name-suggest"></div>' +
+      '</div>' +
       '<span class="rf-label">סוג</span>' +
       '<div style="display:flex;gap:8px;margin-bottom:10px">' +
       FREEZER_CATS.map(function (c) { return '<label class="rf-chip"><input type="radio" name="rf-fz-cat" value="' + c.key + '" style="display:none">' + c.icon + ' ' + c.label + '</label>'; }).join("") +
@@ -885,6 +913,25 @@
       });
     });
 
+    var fzNameInput = document.getElementById("rf-fz-name");
+    if (fzNameInput) {
+      fzNameInput.addEventListener("input", function () {
+        var box = document.getElementById("rf-fz-name-suggest");
+        var val = fzNameInput.value.trim();
+        if (!val) { box.innerHTML = ""; return; }
+        var opts = allIngredients().filter(function (i) { return i.indexOf(val) !== -1; }).slice(0, 6);
+        if (opts.length === 0) { box.innerHTML = ""; return; }
+        box.innerHTML = '<div class="rf-suggest">' + opts.map(function (o) { return '<button type="button" data-fz-pick="' + esc(o) + '">' + esc(o) + '</button>'; }).join("") + '</div>';
+        box.querySelectorAll("[data-fz-pick]").forEach(function (b) {
+          b.addEventListener("mousedown", function () {
+            fzNameInput.value = b.getAttribute("data-fz-pick");
+            box.innerHTML = "";
+          });
+        });
+      });
+      fzNameInput.addEventListener("blur", function () { setTimeout(function () { var b = document.getElementById("rf-fz-name-suggest"); if (b) b.innerHTML = ""; }, 150); });
+    }
+
     var saveBtn = document.getElementById("rf-fz-save");
     if (saveBtn) saveBtn.addEventListener("click", function () {
       var name = document.getElementById("rf-fz-name").value.trim();
@@ -922,13 +969,15 @@
         missingItems.map(function (i) {
           var label = esc(i.name) + " — " + formatQty(missingAmount(i)) + " " + freezerUnitLabel(i.unit);
           return '<label style="display:flex;align-items:center;gap:8px;padding:6px 0;font-size:14px">' +
-            '<input type="checkbox" class="rf-fz-pick-cb" data-label="' + esc(label) + '" style="width:18px;height:18px;flex-shrink:0">' + label + '</label>';
+            '<input type="checkbox" class="rf-fz-pick-cb" data-name="' + esc(i.name) + '" data-category="' + esc(i.category) + '" style="width:18px;height:18px;flex-shrink:0">' + label + '</label>';
         }).join("") +
         '<button type="button" id="rf-fz-pick-confirm" class="rf-btn" style="margin-top:10px;width:100%;justify-content:center">הוספת הנבחרים</button>' +
         '</div>';
       box.setAttribute("data-open", "1");
       document.getElementById("rf-fz-pick-confirm").addEventListener("click", function () {
-        var chosen = Array.prototype.slice.call(box.querySelectorAll(".rf-fz-pick-cb:checked")).map(function (cb) { return cb.getAttribute("data-label"); });
+        var chosen = Array.prototype.slice.call(box.querySelectorAll(".rf-fz-pick-cb:checked")).map(function (cb) {
+          return { name: cb.getAttribute("data-name"), category: cb.getAttribute("data-category") };
+        });
         if (chosen.length) addShoppingItems(chosen);
         box.innerHTML = ""; box.removeAttribute("data-open");
         addShopBtn.textContent = "✓ נוסף לרשימת הקניות";
