@@ -181,7 +181,8 @@
     shoppingLoading: true,
     freezerItems: [],
     freezerLoading: true,
-    freezerFormOpen: false
+    freezerFormOpen: false,
+    freezerView: "stock" // stock | missing
   };
 
   var FREEZER_CATS = [
@@ -857,34 +858,60 @@
   }
 
   function renderFreezer() {
-    var sectionsHtml = FREEZER_CATS.map(function (cat) {
-      var items = state.freezerItems.filter(function (i) { return i.category === cat.key; });
-      var rows = items.map(function (i) {
-        var missing = missingAmount(i);
-        var unitLabel = freezerUnitLabel(i.unit);
+    var isStock = state.freezerView !== "missing";
+    var modeToggle =
+      '<div class="rf-tabs" style="margin:0 0 14px">' +
+      '<button type="button" class="rf-tab ' + (isStock ? "on" : "") + '" data-fz-view="stock">📦 מה יש</button>' +
+      '<button type="button" class="rf-tab ' + (!isStock ? "on" : "") + '" data-fz-view="missing">📝 מה חסר</button>' +
+      '</div>';
+
+    var sectionsHtml;
+    if (isStock) {
+      sectionsHtml = FREEZER_CATS.map(function (cat) {
+        var items = state.freezerItems.filter(function (i) { return i.category === cat.key; });
+        var rows = items.map(function (i) {
+          var unitLabel = freezerUnitLabel(i.unit);
+          return (
+            '<div class="rf-shop-row">' +
+            '<span style="flex:1;font-size:14px;font-weight:600">' + esc(i.name) + '</span>' +
+            '<span style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-soft)">' +
+            '<input type="number" step="0.1" min="0" data-freezer-id="' + i.id + '" data-freezer-field="currentQty" value="' + (i.currentQty || 0) + '" style="width:56px;border:1px solid var(--line);border-radius:6px;padding:3px 4px;text-align:center;font-size:13px">' +
+            ' ' + unitLabel + '</span>' +
+            '<span data-freezer-del="' + i.id + '" style="cursor:pointer;color:var(--ink-soft);padding:2px">✕</span>' +
+            '</div>'
+          );
+        }).join("");
         return (
-          '<div class="rf-shop-row" style="flex-wrap:wrap">' +
-          '<span style="flex:1;font-size:14px;font-weight:600;min-width:90px">' + esc(i.name) + '</span>' +
-          '<span style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-soft)">' +
-          'יש: <input type="number" step="0.1" min="0" data-freezer-id="' + i.id + '" data-freezer-field="currentQty" value="' + (i.currentQty || 0) + '" style="width:52px;border:1px solid var(--line);border-radius:6px;padding:3px 4px;text-align:center;font-size:13px">' +
-          '</span>' +
-          '<span style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-soft)">' +
-          'קונים בד"כ: <input type="number" step="0.1" min="0" data-freezer-id="' + i.id + '" data-freezer-field="usualQty" value="' + (i.usualQty || 0) + '" style="width:52px;border:1px solid var(--line);border-radius:6px;padding:3px 4px;text-align:center;font-size:13px">' +
-          '</span>' +
-          '<span style="font-size:11px;color:var(--ink-soft)">' + unitLabel + '</span>' +
-          (missing > 0 ? '<span class="rf-badge" style="background:var(--terracotta)22;color:var(--terracotta)">חסר ' + formatQty(missing) + '</span>' : '<span class="rf-badge" style="background:var(--forest-soft);color:var(--forest)">מלא</span>') +
-          '<span data-freezer-del="' + i.id + '" style="cursor:pointer;color:var(--ink-soft);padding:2px">✕</span>' +
-          '</div>'
+          '<h4 class="rf-title" style="font-size:15px;margin:18px 0 6px">' + cat.icon + ' ' + cat.label + '</h4>' +
+          (rows
+            ? '<div class="rf-card" style="padding:2px 14px">' + rows + '</div>'
+            : '<p style="font-size:13px;color:var(--ink-soft);margin:0">עדיין לא הוספתם פריטים כאן</p>')
         );
       }).join("");
-
-      return (
-        '<h4 class="rf-title" style="font-size:15px;margin:18px 0 6px">' + cat.icon + ' ' + cat.label + '</h4>' +
-        (rows
-          ? '<div class="rf-card" style="padding:2px 14px">' + rows + '</div>'
-          : '<p style="font-size:13px;color:var(--ink-soft);margin:0">עדיין לא הוספתם פריטים כאן</p>')
-      );
-    }).join("");
+    } else {
+      var anyMissing = state.freezerItems.some(function (i) { return missingAmount(i) > 0; });
+      if (!anyMissing) {
+        sectionsHtml = '<div class="rf-card" style="padding:20px;text-align:center;color:var(--ink-soft)">הכל מלא! 🎉<br><span style="font-size:12px">אפשר לעדכן "כמה קונים בדרך כלל" לכל פריט דרך ✏️</span></div>';
+      } else {
+        sectionsHtml = FREEZER_CATS.map(function (cat) {
+          var items = state.freezerItems.filter(function (i) { return i.category === cat.key; });
+          var rows = items.map(function (i) {
+            var missing = missingAmount(i);
+            var unitLabel = freezerUnitLabel(i.unit);
+            return (
+              '<div class="rf-shop-row">' +
+              '<span style="flex:1;font-size:14px;font-weight:600">' + esc(i.name) + '</span>' +
+              (missing > 0
+                ? '<span class="rf-badge" style="background:var(--terracotta)22;color:var(--terracotta)">חסר ' + formatQty(missing) + ' ' + unitLabel + '</span>'
+                : '<span class="rf-badge" style="background:var(--forest-soft);color:var(--forest)">מלא</span>') +
+              '<span data-freezer-edit-usual="' + i.id + '" data-freezer-name="' + esc(i.name) + '" data-freezer-usual="' + (i.usualQty || 0) + '" style="cursor:pointer;color:var(--ink-soft);padding:2px" title="עדכון כמות רגילה">✏️</span>' +
+              '</div>'
+            );
+          }).join("");
+          return rows ? ('<h4 class="rf-title" style="font-size:15px;margin:18px 0 6px">' + cat.icon + ' ' + cat.label + '</h4><div class="rf-card" style="padding:2px 14px">' + rows + '</div>') : '';
+        }).join("");
+      }
+    }
 
     var addForm = state.freezerFormOpen ? (
       '<div class="rf-card" style="padding:14px;margin-top:10px">' +
@@ -914,11 +941,12 @@
     var hasMissing = state.freezerItems.some(function (i) { return missingAmount(i) > 0; });
 
     return (
-      '<button type="button" id="rf-fz-add-toggle" class="rf-details-link" style="width:100%;justify-content:center;padding:11px">' +
+      '<button type="button" id="rf-fz-add-toggle" class="rf-details-link" style="width:100%;justify-content:center;padding:11px;margin-bottom:14px">' +
       (state.freezerFormOpen ? "✕ סגירה" : "+ הוספת פריט למקפיא") + '</button>' +
       addForm +
+      modeToggle +
       sectionsHtml +
-      (hasMissing ? '<button type="button" id="rf-fz-add-shop" class="rf-btn" style="width:100%;justify-content:center;margin-top:18px">🛒 הוספת חוסרים לרשימת הקניות</button>' : '') +
+      (!isStock && hasMissing ? '<button type="button" id="rf-fz-add-shop" class="rf-btn" style="width:100%;justify-content:center;margin-top:18px">🛒 הוספת חוסרים לרשימת הקניות</button>' : '') +
       '<div id="rf-fz-picker"></div>'
     );
   }
@@ -926,6 +954,24 @@
   function wireFreezer() {
     var toggle = document.getElementById("rf-fz-add-toggle");
     if (toggle) toggle.addEventListener("click", function () { state.freezerFormOpen = !state.freezerFormOpen; render(); });
+
+    root.querySelectorAll("[data-fz-view]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        state.freezerView = btn.getAttribute("data-fz-view");
+        render();
+      });
+    });
+    root.querySelectorAll("[data-freezer-edit-usual]").forEach(function (el) {
+      el.addEventListener("click", function () {
+        var id = el.getAttribute("data-freezer-edit-usual");
+        var name = el.getAttribute("data-freezer-name");
+        var current = el.getAttribute("data-freezer-usual");
+        var val = prompt('כמה "' + name + '" קונים בדרך כלל?', current);
+        if (val === null) return;
+        var num = parseFloat(val);
+        if (!isNaN(num) && num >= 0) updateFreezerQty(id, "usualQty", num);
+      });
+    });
 
     root.querySelectorAll('input[name="rf-fz-cat"], input[name="rf-fz-unit"]').forEach(function (inp) {
       inp.addEventListener("change", function () {
