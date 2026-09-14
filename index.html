@@ -599,11 +599,8 @@
     if (!item) return;
     var step = freezerStep(item.unit);
     var next = Math.round(((item.currentQty || 0) + delta * step) * 100) / 100;
-    if (next <= 0) {
-      deleteFreezerItem(id);
-    } else {
-      updateFreezerQty(id, "currentQty", next);
-    }
+    if (next < 0) next = 0;
+    updateFreezerQty(id, "currentQty", next);
   }
 
   function freezerUnitLabel(unitKey) {
@@ -905,27 +902,28 @@
       }).join("");
     } else {
       var anyMissing = state.freezerItems.some(function (i) { return missingAmount(i) > 0; });
-      if (!anyMissing) {
-        sectionsHtml = '<div class="rf-card" style="padding:20px;text-align:center;color:var(--ink-soft)">הכל מלא! 🎉<br><span style="font-size:12px">אפשר לעדכן "כמה קונים בדרך כלל" לכל פריט דרך ✏️</span></div>';
-      } else {
-        sectionsHtml = FREEZER_CATS.map(function (cat) {
-          var items = state.freezerItems.filter(function (i) { return i.category === cat.key; });
-          var rows = items.map(function (i) {
-            var missing = missingAmount(i);
-            var unitLabel = freezerUnitLabel(i.unit);
-            return (
-              '<div class="rf-shop-row">' +
-              '<span style="flex:1;font-size:14px;font-weight:600">' + esc(i.name) + '</span>' +
-              (missing > 0
-                ? '<span class="rf-badge" style="background:var(--terracotta)22;color:var(--terracotta)">חסר ' + formatQty(missing) + ' ' + unitLabel + '</span>'
-                : '<span class="rf-badge" style="background:var(--forest-soft);color:var(--forest)">מלא</span>') +
-              '<span data-freezer-edit-usual="' + i.id + '" data-freezer-name="' + esc(i.name) + '" data-freezer-usual="' + (i.usualQty || 0) + '" style="cursor:pointer;color:var(--ink-soft);padding:2px" title="עדכון כמות רגילה">✏️</span>' +
-              '</div>'
-            );
-          }).join("");
-          return rows ? ('<h4 class="rf-title" style="font-size:15px;margin:18px 0 6px">' + cat.icon + ' ' + cat.label + '</h4><div class="rf-card" style="padding:2px 14px">' + rows + '</div>') : '';
+      var celebrate = !anyMissing && state.freezerItems.length > 0
+        ? '<div class="rf-card" style="padding:14px;text-align:center;color:var(--ink-soft);margin-bottom:10px">הכל מלא! 🎉</div>'
+        : '';
+      var itemsHtml = FREEZER_CATS.map(function (cat) {
+        var items = state.freezerItems.filter(function (i) { return i.category === cat.key; });
+        var rows = items.map(function (i) {
+          var missing = missingAmount(i);
+          var unitLabel = freezerUnitLabel(i.unit);
+          return (
+            '<div class="rf-shop-row">' +
+            '<span style="flex:1;font-size:14px;font-weight:600">' + esc(i.name) + '</span>' +
+            (missing > 0
+              ? '<span class="rf-badge" style="background:var(--terracotta)22;color:var(--terracotta)">חסר ' + formatQty(missing) + ' ' + unitLabel + '</span>'
+              : '<span class="rf-badge" style="background:var(--forest-soft);color:var(--forest)">מלא</span>') +
+            '<span data-freezer-edit-usual="' + i.id + '" data-freezer-name="' + esc(i.name) + '" data-freezer-usual="' + (i.usualQty || 0) + '" style="cursor:pointer;color:var(--ink-soft);padding:2px" title="עדכון כמות רגילה">✏️</span>' +
+            '<span data-freezer-del="' + i.id + '" data-freezer-name="' + esc(i.name) + '" style="cursor:pointer;color:var(--ink-soft);padding:2px" title="הסרת הפריט מהמעקב">🗑</span>' +
+            '</div>'
+          );
         }).join("");
-      }
+        return rows ? ('<h4 class="rf-title" style="font-size:15px;margin:18px 0 6px">' + cat.icon + ' ' + cat.label + '</h4><div class="rf-card" style="padding:2px 14px">' + rows + '</div>') : '';
+      }).join("");
+      sectionsHtml = celebrate + itemsHtml;
     }
 
     var addForm = state.freezerFormOpen ? (
@@ -985,6 +983,12 @@
         if (val === null) return;
         var num = parseFloat(val);
         if (!isNaN(num) && num >= 0) updateFreezerQty(id, "usualQty", num);
+      });
+    });
+    root.querySelectorAll("[data-freezer-del]").forEach(function (el) {
+      el.addEventListener("click", function () {
+        var name = el.getAttribute("data-freezer-name");
+        if (confirm('להסיר לגמרי את "' + name + '" מהמעקב במקפיא?')) deleteFreezerItem(el.getAttribute("data-freezer-del"));
       });
     });
 
