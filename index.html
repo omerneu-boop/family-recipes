@@ -193,10 +193,14 @@
     { key: "units", label: "יחידות" }
   ];
 
-  // An ingredient entry is either a plain string, or an array of strings
+  // An ingredient entry is either a plain string, or an object { or: [...] }
   // representing interchangeable alternatives ("בשר טחון או עוף טחון").
-  function ingredientNames(entry) { return Array.isArray(entry) ? entry : [entry]; }
-  function ingredientLabel(entry) { return Array.isArray(entry) ? entry.join(" או ") : entry; }
+  // NOTE: this must NOT be a bare array — Firestore rejects arrays that
+  // directly contain other arrays ("nested arrays are not supported"),
+  // which silently threw and blocked saving before this fix.
+  function isOrGroup(entry) { return entry && typeof entry === "object" && Array.isArray(entry.or); }
+  function ingredientNames(entry) { return isOrGroup(entry) ? entry.or : [entry]; }
+  function ingredientLabel(entry) { return isOrGroup(entry) ? entry.or.join(" או ") : entry; }
 
   function allIngredients() {
     var set = {};
@@ -397,7 +401,8 @@
     if (ingInput && ingInput.value.trim()) {
       ingInput.value.split(",").forEach(function (p) {
         var v = p.trim();
-        if (v && state.formIngredients.indexOf(v) === -1) state.formIngredients.push(v);
+        var exists = state.formIngredients.some(function (entry) { return ingredientNames(entry).indexOf(v) !== -1; });
+        if (v && !exists) state.formIngredients.push(v);
       });
       ingInput.value = "";
     }
@@ -445,7 +450,9 @@
   // ---------- Render: pieces ----------
   function renderIngredientChips() {
     return state.formIngredients.map(function (ing, idx) {
-      return '<span class="rf-chip on" data-idx="' + idx + '">' + esc(ingredientLabel(ing)) +
+      return '<span class="rf-chip on" data-idx="' + idx + '">' +
+        (idx > 0 ? '<span data-move-up-idx="' + idx + '" style="cursor:pointer;padding:0 2px" title="הזזה למעלה">⬆</span>' : '') +
+        esc(ingredientLabel(ing)) +
         ' <span data-remove-idx="' + idx + '" style="cursor:pointer">✕</span></span>';
     }).join("");
   }
@@ -1081,7 +1088,7 @@
       if (orToggle && orToggle.checked && state.formIngredients.length > 0) {
         var lastIdx = state.formIngredients.length - 1;
         var last = state.formIngredients[lastIdx];
-        state.formIngredients[lastIdx] = Array.isArray(last) ? last.concat([v]) : [last, v];
+        state.formIngredients[lastIdx] = isOrGroup(last) ? { or: last.or.concat([v]) } : { or: [last, v] };
       } else {
         state.formIngredients.push(v);
       }
@@ -1095,6 +1102,16 @@
         x.addEventListener("click", function () {
           var idx = parseInt(x.getAttribute("data-remove-idx"), 10);
           state.formIngredients.splice(idx, 1);
+          document.getElementById("rf-ing-chips").innerHTML = renderIngredientChips();
+          wireIngredientChips();
+        });
+      });
+      root.querySelectorAll("[data-move-up-idx]").forEach(function (x) {
+        x.addEventListener("click", function () {
+          var idx = parseInt(x.getAttribute("data-move-up-idx"), 10);
+          if (idx <= 0) return;
+          var arr = state.formIngredients;
+          var tmp = arr[idx - 1]; arr[idx - 1] = arr[idx]; arr[idx] = tmp;
           document.getElementById("rf-ing-chips").innerHTML = renderIngredientChips();
           wireIngredientChips();
         });
