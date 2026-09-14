@@ -592,6 +592,20 @@
     db.collection("freezer").doc(id).delete().catch(function () {});
   }
 
+  function freezerStep(unit) { return unit === "kg" ? 0.5 : 1; }
+
+  function adjustFreezerQty(id, delta) {
+    var item = state.freezerItems.find(function (x) { return x.id === id; });
+    if (!item) return;
+    var step = freezerStep(item.unit);
+    var next = Math.round(((item.currentQty || 0) + delta * step) * 100) / 100;
+    if (next <= 0) {
+      deleteFreezerItem(id);
+    } else {
+      updateFreezerQty(id, "currentQty", next);
+    }
+  }
+
   function freezerUnitLabel(unitKey) {
     var u = FREEZER_UNITS.find(function (x) { return x.key === unitKey; });
     return u ? u.label : unitKey;
@@ -874,10 +888,11 @@
           return (
             '<div class="rf-shop-row">' +
             '<span style="flex:1;font-size:14px;font-weight:600">' + esc(i.name) + '</span>' +
-            '<span style="display:flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-soft)">' +
-            '<input type="number" step="0.1" min="0" data-freezer-id="' + i.id + '" data-freezer-field="currentQty" value="' + (i.currentQty || 0) + '" style="width:56px;border:1px solid var(--line);border-radius:6px;padding:3px 4px;text-align:center;font-size:13px">' +
-            ' ' + unitLabel + '</span>' +
-            '<span data-freezer-del="' + i.id + '" style="cursor:pointer;color:var(--ink-soft);padding:2px">✕</span>' +
+            '<span style="display:flex;align-items:center;gap:8px">' +
+            '<button type="button" data-freezer-minus="' + i.id + '" class="rf-btn-outline rf-btn" style="padding:2px 0;width:28px;height:28px;border-radius:50%;justify-content:center;font-size:16px;line-height:1">−</button>' +
+            '<span style="min-width:56px;text-align:center;font-size:14px;font-weight:600">' + formatQty(i.currentQty || 0) + ' ' + unitLabel + '</span>' +
+            '<button type="button" data-freezer-plus="' + i.id + '" class="rf-btn-outline rf-btn" style="padding:2px 0;width:28px;height:28px;border-radius:50%;justify-content:center;font-size:16px;line-height:1">+</button>' +
+            '</span>' +
             '</div>'
           );
         }).join("");
@@ -1014,16 +1029,11 @@
     var cancelBtn = document.getElementById("rf-fz-cancel");
     if (cancelBtn) cancelBtn.addEventListener("click", function () { state.freezerFormOpen = false; render(); });
 
-    root.querySelectorAll("[data-freezer-id]").forEach(function (inp) {
-      inp.addEventListener("change", function () {
-        var val = parseFloat(inp.value) || 0;
-        updateFreezerQty(inp.getAttribute("data-freezer-id"), inp.getAttribute("data-freezer-field"), val);
-      });
+    root.querySelectorAll("[data-freezer-minus]").forEach(function (el) {
+      el.addEventListener("click", function () { adjustFreezerQty(el.getAttribute("data-freezer-minus"), -1); });
     });
-    root.querySelectorAll("[data-freezer-del]").forEach(function (el) {
-      el.addEventListener("click", function () {
-        if (confirm("להסיר את הפריט מהמקפיא?")) deleteFreezerItem(el.getAttribute("data-freezer-del"));
-      });
+    root.querySelectorAll("[data-freezer-plus]").forEach(function (el) {
+      el.addEventListener("click", function () { adjustFreezerQty(el.getAttribute("data-freezer-plus"), 1); });
     });
 
     var addShopBtn = document.getElementById("rf-fz-add-shop");
