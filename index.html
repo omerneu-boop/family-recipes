@@ -182,7 +182,8 @@
     freezerItems: [],
     freezerLoading: true,
     freezerFormOpen: false,
-    freezerView: "stock" // stock | missing
+    freezerView: "stock", // stock | missing
+    freezerEmptyOpen: false
   };
 
   var FREEZER_CATS = [
@@ -868,6 +869,20 @@
     });
   }
 
+  function freezerStepperRowHtml(i) {
+    var unitLabel = freezerUnitLabel(i.unit);
+    return (
+      '<div class="rf-shop-row">' +
+      '<span style="flex:1;font-size:14px;font-weight:600">' + esc(i.name) + '</span>' +
+      '<span style="display:flex;align-items:center;gap:8px">' +
+      '<button type="button" data-freezer-plus="' + i.id + '" class="rf-btn-outline rf-btn" style="padding:2px 0;width:28px;height:28px;border-radius:50%;justify-content:center;font-size:16px;line-height:1">+</button>' +
+      '<span style="min-width:56px;text-align:center;font-size:14px;font-weight:600">' + formatQty(i.currentQty || 0) + ' ' + unitLabel + '</span>' +
+      '<button type="button" data-freezer-minus="' + i.id + '" class="rf-btn-outline rf-btn" style="padding:2px 0;width:28px;height:28px;border-radius:50%;justify-content:center;font-size:16px;line-height:1">−</button>' +
+      '</span>' +
+      '</div>'
+    );
+  }
+
   function renderFreezer() {
     var isStock = state.freezerView !== "missing";
     var modeToggle =
@@ -879,27 +894,25 @@
     var sectionsHtml;
     if (isStock) {
       sectionsHtml = FREEZER_CATS.map(function (cat) {
-        var items = state.freezerItems.filter(function (i) { return i.category === cat.key; });
-        var rows = items.map(function (i) {
-          var unitLabel = freezerUnitLabel(i.unit);
-          return (
-            '<div class="rf-shop-row">' +
-            '<span style="flex:1;font-size:14px;font-weight:600">' + esc(i.name) + '</span>' +
-            '<span style="display:flex;align-items:center;gap:8px">' +
-            '<button type="button" data-freezer-plus="' + i.id + '" class="rf-btn-outline rf-btn" style="padding:2px 0;width:28px;height:28px;border-radius:50%;justify-content:center;font-size:16px;line-height:1">+</button>' +
-            '<span style="min-width:56px;text-align:center;font-size:14px;font-weight:600">' + formatQty(i.currentQty || 0) + ' ' + unitLabel + '</span>' +
-            '<button type="button" data-freezer-minus="' + i.id + '" class="rf-btn-outline rf-btn" style="padding:2px 0;width:28px;height:28px;border-radius:50%;justify-content:center;font-size:16px;line-height:1">−</button>' +
-            '</span>' +
-            '</div>'
-          );
-        }).join("");
+        var items = state.freezerItems.filter(function (i) { return i.category === cat.key && (i.currentQty || 0) > 0; });
+        var rows = items.map(freezerStepperRowHtml).join("");
         return (
           '<h4 class="rf-title" style="font-size:15px;margin:18px 0 6px">' + cat.icon + ' ' + cat.label + '</h4>' +
           (rows
             ? '<div class="rf-card" style="padding:2px 14px">' + rows + '</div>'
-            : '<p style="font-size:13px;color:var(--ink-soft);margin:0">עדיין לא הוספתם פריטים כאן</p>')
+            : '<p style="font-size:13px;color:var(--ink-soft);margin:0">אין כרגע פריטים עם מלאי כאן</p>')
         );
       }).join("");
+
+      var emptyItems = state.freezerItems.filter(function (i) { return (i.currentQty || 0) <= 0; });
+      if (emptyItems.length > 0) {
+        var emptyOpen = state.freezerEmptyOpen;
+        sectionsHtml +=
+          '<button type="button" id="rf-fz-empty-toggle" class="rf-btn-outline rf-btn" style="width:100%;justify-content:space-between;margin-top:18px">' +
+          '<span>אזל לגמרי (' + emptyItems.length + ')</span><span>' + (emptyOpen ? "▾" : "◂") + '</span>' +
+          '</button>' +
+          (emptyOpen ? '<div class="rf-card" style="padding:2px 14px;margin-top:8px">' + emptyItems.map(freezerStepperRowHtml).join("") + '</div>' : '');
+      }
     } else {
       var anyMissing = state.freezerItems.some(function (i) { return missingAmount(i) > 0; });
       var celebrate = !anyMissing && state.freezerItems.length > 0
@@ -973,6 +986,11 @@
         state.freezerView = btn.getAttribute("data-fz-view");
         render();
       });
+    });
+    var emptyToggle = document.getElementById("rf-fz-empty-toggle");
+    if (emptyToggle) emptyToggle.addEventListener("click", function () {
+      state.freezerEmptyOpen = !state.freezerEmptyOpen;
+      render();
     });
     root.querySelectorAll("[data-freezer-edit-usual]").forEach(function (el) {
       el.addEventListener("click", function () {
