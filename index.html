@@ -184,7 +184,8 @@
     freezerFormOpen: false,
     freezerView: "stock", // stock | missing
     freezerEmptyOpen: false,
-    freezerEditId: null
+    freezerEditId: null,
+    freezerEditMode: false
   };
 
   var FREEZER_CATS = [
@@ -875,7 +876,7 @@
     return (
       '<div class="rf-shop-row">' +
       '<span style="flex:1;font-size:14px;font-weight:600">' + esc(i.name) + '</span>' +
-      '<span data-freezer-edit="' + i.id + '" style="cursor:pointer;color:var(--ink-soft);padding:2px" title="עריכת הפריט">✏️</span>' +
+      (state.freezerEditMode ? '<span data-freezer-edit="' + i.id + '" style="cursor:pointer;color:var(--ink-soft);padding:2px" title="עריכת הפריט">✏️</span>' : '') +
       '<span style="display:flex;align-items:center;gap:8px">' +
       '<button type="button" data-freezer-plus="' + i.id + '" class="rf-btn-outline rf-btn" style="padding:2px 0;width:28px;height:28px;border-radius:50%;justify-content:center;font-size:16px;line-height:1">+</button>' +
       '<span style="min-width:56px;text-align:center;font-size:14px;font-weight:600">' + formatQty(i.currentQty || 0) + ' ' + unitLabel + '</span>' +
@@ -928,8 +929,10 @@
             '<div class="rf-shop-row">' +
             '<span style="flex:1;font-size:14px;font-weight:600">' + esc(i.name) + '</span>' +
             '<span class="rf-badge" style="background:var(--terracotta)22;color:var(--terracotta)">חסר ' + formatQty(missingAmount(i)) + ' ' + unitLabel + '</span>' +
-            '<span data-freezer-edit="' + i.id + '" style="cursor:pointer;color:var(--ink-soft);padding:2px" title="עריכת הפריט">✏️</span>' +
-            '<span data-freezer-del="' + i.id + '" data-freezer-name="' + esc(i.name) + '" style="cursor:pointer;color:var(--ink-soft);padding:2px" title="הסרת הפריט מהמעקב">🗑</span>' +
+            (state.freezerEditMode
+              ? '<span data-freezer-edit="' + i.id + '" style="cursor:pointer;color:var(--ink-soft);padding:2px" title="עריכת הפריט">✏️</span>' +
+                '<span data-freezer-del="' + i.id + '" data-freezer-name="' + esc(i.name) + '" style="cursor:pointer;color:var(--ink-soft);padding:2px" title="הסרת הפריט מהמעקב">🗑</span>'
+              : '') +
             '</div>'
           );
         }).join("");
@@ -976,6 +979,8 @@
       addForm +
       modeToggle +
       sectionsHtml +
+      '<button type="button" id="rf-fz-edit-mode-toggle" class="rf-btn-outline rf-btn" style="width:100%;justify-content:center;margin-top:16px">' +
+      (state.freezerEditMode ? "✓ סיום עריכה" : "✏️ מצב עריכה") + '</button>' +
       '<button type="button" id="rf-fz-add-toggle" class="rf-btn rf-fab" aria-label="הוספת פריט למקפיא">' +
       (state.freezerFormOpen ? "✕" : "+") + '</button>'
     );
@@ -998,6 +1003,11 @@
         state.freezerView = btn.getAttribute("data-fz-view");
         render();
       });
+    });
+    var editModeToggle = document.getElementById("rf-fz-edit-mode-toggle");
+    if (editModeToggle) editModeToggle.addEventListener("click", function () {
+      state.freezerEditMode = !state.freezerEditMode;
+      render();
     });
     var emptyToggle = document.getElementById("rf-fz-empty-toggle");
     if (emptyToggle) emptyToggle.addEventListener("click", function () {
