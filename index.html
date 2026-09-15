@@ -875,6 +875,7 @@
     return (
       '<div class="rf-shop-row">' +
       '<span style="flex:1;font-size:14px;font-weight:600">' + esc(i.name) + '</span>' +
+      '<span data-freezer-edit="' + i.id + '" style="cursor:pointer;color:var(--ink-soft);padding:2px" title="עריכת הפריט">✏️</span>' +
       '<span style="display:flex;align-items:center;gap:8px">' +
       '<button type="button" data-freezer-plus="' + i.id + '" class="rf-btn-outline rf-btn" style="padding:2px 0;width:28px;height:28px;border-radius:50%;justify-content:center;font-size:16px;line-height:1">+</button>' +
       '<span style="min-width:56px;text-align:center;font-size:14px;font-weight:600">' + formatQty(i.currentQty || 0) + ' ' + unitLabel + '</span>' +
@@ -920,16 +921,13 @@
         ? '<div class="rf-card" style="padding:14px;text-align:center;color:var(--ink-soft);margin-bottom:10px">הכל מלא! 🎉</div>'
         : '';
       var itemsHtml = FREEZER_CATS.map(function (cat) {
-        var items = state.freezerItems.filter(function (i) { return i.category === cat.key; });
+        var items = state.freezerItems.filter(function (i) { return i.category === cat.key && missingAmount(i) > 0; });
         var rows = items.map(function (i) {
-          var missing = missingAmount(i);
           var unitLabel = freezerUnitLabel(i.unit);
           return (
             '<div class="rf-shop-row">' +
             '<span style="flex:1;font-size:14px;font-weight:600">' + esc(i.name) + '</span>' +
-            (missing > 0
-              ? '<span class="rf-badge" style="background:var(--terracotta)22;color:var(--terracotta)">חסר ' + formatQty(missing) + ' ' + unitLabel + '</span>'
-              : '<span class="rf-badge" style="background:var(--forest-soft);color:var(--forest)">מלא</span>') +
+            '<span class="rf-badge" style="background:var(--terracotta)22;color:var(--terracotta)">חסר ' + formatQty(missingAmount(i)) + ' ' + unitLabel + '</span>' +
             '<span data-freezer-edit="' + i.id + '" style="cursor:pointer;color:var(--ink-soft);padding:2px" title="עריכת הפריט">✏️</span>' +
             '<span data-freezer-del="' + i.id + '" data-freezer-name="' + esc(i.name) + '" style="cursor:pointer;color:var(--ink-soft);padding:2px" title="הסרת הפריט מהמעקב">🗑</span>' +
             '</div>'
