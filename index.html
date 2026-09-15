@@ -161,6 +161,11 @@
 
   var root = document.getElementById("rf-app");
   var app, db;
+  // When a "אזל לגמרי" item gets its first + click, keep it visually in the
+  // empty section for a few seconds so the person can keep tapping + to
+  // reach the full amount without the row jumping away mid-tap.
+  var freezerGraceIds = {};
+  var freezerGraceTimers = {};
   var connStatus = "connecting"; // connecting | ok | error
   var connErrorMsg = "";
 
@@ -600,11 +605,22 @@
   function adjustFreezerQty(id, delta) {
     var item = state.freezerItems.find(function (x) { return x.id === id; });
     if (!item) return;
+    var wasEmpty = (item.currentQty || 0) <= 0;
     var step = freezerStep(item.unit);
     var next = Math.round(((item.currentQty || 0) + delta * step) * 100) / 100;
     if (next < 0) next = 0;
     updateFreezerQty(id, "currentQty", next);
+    if ((wasEmpty || freezerGraceIds[id]) && delta > 0) {
+      freezerGraceIds[id] = true;
+      clearTimeout(freezerGraceTimers[id]);
+      freezerGraceTimers[id] = setTimeout(function () {
+        delete freezerGraceIds[id];
+        render();
+      }, 5000);
+    }
   }
+
+  function isFreezerEmptyBucket(i) { return (i.currentQty || 0) <= 0 || freezerGraceIds[i.id]; }
 
   function freezerUnitLabel(unitKey) {
     var u = FREEZER_UNITS.find(function (x) { return x.key === unitKey; });
@@ -897,7 +913,7 @@
     var sectionsHtml;
     if (isStock) {
       sectionsHtml = FREEZER_CATS.map(function (cat) {
-        var items = state.freezerItems.filter(function (i) { return i.category === cat.key && (i.currentQty || 0) > 0; });
+        var items = state.freezerItems.filter(function (i) { return i.category === cat.key && !isFreezerEmptyBucket(i); });
         var rows = items.map(freezerStepperRowHtml).join("");
         return (
           '<h4 class="rf-title" style="font-size:15px;margin:18px 0 6px">' + cat.icon + ' ' + cat.label + '</h4>' +
@@ -907,7 +923,7 @@
         );
       }).join("");
 
-      var emptyItems = state.freezerItems.filter(function (i) { return (i.currentQty || 0) <= 0; });
+      var emptyItems = state.freezerItems.filter(isFreezerEmptyBucket);
       if (emptyItems.length > 0) {
         var emptyOpen = state.freezerEmptyOpen;
         sectionsHtml +=
