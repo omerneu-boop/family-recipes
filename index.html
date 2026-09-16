@@ -229,7 +229,7 @@
       var cats = r.mainIngredients || [];
       if (state.activeCategories.length > 0 && !cats.some(function (c) { return state.activeCategories.indexOf(c) !== -1; })) return false;
       if (state.freezerOnly) {
-        var trackedOk = cats.some(function (c) { return FREEZER_TRACKED_CATS.indexOf(c) === -1 || hasFreezerStock(c); });
+        var trackedOk = cats.some(function (c) { return FREEZER_TRACKED_CATS.indexOf(c) === -1 || recipeHasFreezerCoverage(r, c); });
         if (!trackedOk && cats.length > 0) return false;
       }
       if (tokens.length === 0) return true;
@@ -641,10 +641,20 @@
   // stock if any freezer item in the meat section has quantity > 0, and
   // likewise "דג" against the fish section.
   var CATEGORY_TO_FREEZER_SECTION = { "בשר": "meat", "דג": "fish" };
-  function hasFreezerStock(categoryName) {
+  // Whether THIS recipe's own meat/fish ingredient(s) are specifically in
+  // the freezer with stock — not just "is anything in that section in
+  // stock" (that broader check let e.g. an Asado recipe pass just because
+  // some unrelated ground beef was in stock).
+  function recipeHasFreezerCoverage(r, categoryName) {
     var section = CATEGORY_TO_FREEZER_SECTION[categoryName];
     if (!section) return false;
-    return state.freezerItems.some(function (i) { return i.category === section && (i.currentQty || 0) > 0; });
+    var names = [];
+    (r.ingredients || []).forEach(function (entry) {
+      ingredientNames(entry).forEach(function (n) { names.push(n); });
+    });
+    return names.some(function (n) {
+      return state.freezerItems.some(function (i) { return i.category === section && i.name === n && (i.currentQty || 0) > 0; });
+    });
   }
 
   function renderList() {
