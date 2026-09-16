@@ -585,6 +585,7 @@
       name: data.name,
       category: data.category,
       unit: data.unit,
+      unitStep: data.unitStep || 1,
       currentQty: data.currentQty,
       usualQty: data.usualQty
     }).catch(function () {});
@@ -600,13 +601,16 @@
     db.collection("freezer").doc(id).delete().catch(function () {});
   }
 
-  function freezerStep(unit) { return unit === "kg" ? 0.5 : 1; }
+  function freezerStep(item) {
+    if (item.unit === "kg") return 0.5;
+    return item.unitStep === 0.5 ? 0.5 : 1;
+  }
 
   function adjustFreezerQty(id, delta) {
     var item = state.freezerItems.find(function (x) { return x.id === id; });
     if (!item) return;
     var wasEmpty = (item.currentQty || 0) <= 0;
-    var step = freezerStep(item.unit);
+    var step = freezerStep(item);
     var next = Math.round(((item.currentQty || 0) + delta * step) * 100) / 100;
     if (next < 0) next = 0;
     updateFreezerQty(id, "currentQty", next);
@@ -991,6 +995,14 @@
         return '<label class="rf-chip ' + (checked ? "on" : "") + '"><input type="radio" name="rf-fz-unit" value="' + u.key + '" ' + (checked ? "checked" : "") + ' style="display:none">' + u.label + '</label>';
       }).join("") +
       '</div>' +
+      '<div id="rf-fz-unitstep-wrap" style="display:' + ((editItem ? editItem.unit : "kg") === "units" ? "block" : "none") + ';margin-bottom:10px">' +
+      '<span class="rf-label">קפיצות של</span>' +
+      '<div style="display:flex;gap:8px">' +
+      [{ v: "1", l: "יחידה שלמה" }, { v: "0.5", l: "חצי יחידה" }].map(function (o) {
+        var checked = editItem ? (editItem.unitStep === 0.5 ? o.v === "0.5" : o.v === "1") : o.v === "1";
+        return '<label class="rf-chip ' + (checked ? "on" : "") + '"><input type="radio" name="rf-fz-unitstep" value="' + o.v + '" ' + (checked ? "checked" : "") + ' style="display:none">' + o.l + '</label>';
+      }).join("") +
+      '</div></div>' +
       '<span class="rf-label">כמה יש כרגע</span>' +
       '<input id="rf-fz-current" type="number" step="0.1" min="0" class="rf-input" style="margin-bottom:10px" placeholder="0" value="' + (editItem ? (editItem.currentQty || 0) : "") + '" />' +
       '<span class="rf-label">כמה קונים בדרך כלל</span>' +
@@ -1054,10 +1066,14 @@
       });
     });
 
-    root.querySelectorAll('input[name="rf-fz-cat"], input[name="rf-fz-unit"]').forEach(function (inp) {
+    root.querySelectorAll('input[name="rf-fz-cat"], input[name="rf-fz-unit"], input[name="rf-fz-unitstep"]').forEach(function (inp) {
       inp.addEventListener("change", function () {
         root.querySelectorAll('input[name="' + inp.name + '"]').forEach(function (o) { o.closest("label").classList.remove("on"); });
         inp.closest("label").classList.add("on");
+        if (inp.name === "rf-fz-unit") {
+          var wrap = document.getElementById("rf-fz-unitstep-wrap");
+          if (wrap) wrap.style.display = inp.value === "units" ? "block" : "none";
+        }
       });
     });
 
@@ -1085,10 +1101,12 @@
       var name = document.getElementById("rf-fz-name").value.trim();
       var cat = root.querySelector('input[name="rf-fz-cat"]:checked');
       var unit = root.querySelector('input[name="rf-fz-unit"]:checked');
+      var unitStepEl = root.querySelector('input[name="rf-fz-unitstep"]:checked');
       var current = parseFloat(document.getElementById("rf-fz-current").value) || 0;
       var usual = parseFloat(document.getElementById("rf-fz-usual").value) || 0;
       if (!name || !cat || !unit) { alert("צריך שם, סוג ויחידת מידה"); return; }
-      var data = { name: name, category: cat.value, unit: unit.value, currentQty: current, usualQty: usual };
+      var unitStep = (unit.value === "units" && unitStepEl && unitStepEl.value === "0.5") ? 0.5 : 1;
+      var data = { name: name, category: cat.value, unit: unit.value, unitStep: unitStep, currentQty: current, usualQty: usual };
       if (state.freezerEditId) {
         db.collection("freezer").doc(state.freezerEditId).set(data).catch(function () {});
       } else {
